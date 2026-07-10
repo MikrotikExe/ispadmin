@@ -1,0 +1,24 @@
+services:
+  ispadmin:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: mt-ispadmin
+    container_name: mt-ispadmin
+    restart: unless-stopped
+    # Siet hostitela - kontajner vidi MikroTiky presne ako server (aj cez WireGuard/LAN).
+    # Apache pocuva len na 127.0.0.1:8090 (viz docker/ports.conf), von ide cez nginx proxy.
+    network_mode: host
+    environment:
+      - ISPADMIN_SQLITE=/data/ispadmin.sqlite
+      # Geo-ochrana: povolit pristup len z vybranych krajin (cez Cloudflare). Zapni nastavenim ENFORCE=1.
+      - ISPADMIN_GEO_ENFORCE=0
+      - ISPADMIN_GEO_COUNTRIES=SK
+      # Tvoja pevna verejna IP ako poistka (prejde vzdy). Viac oddel ciarkou.
+      # - ISPADMIN_GEO_ALLOW_IPS=1.2.3.4
+    volumes:
+      - ./:/var/www/html
+      - ispadmin-data:/data
+
+volumes:
+  ispadmin-data:

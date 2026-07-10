@@ -1,0 +1,23 @@
+# Lokálna databáza a dáta — nikdy necommitovať!
+data/
+*.sqlite
+*.sqlite-journal
+*.bak
+
+# Reálne dáta zákazníkov (importy) — do repa patrí len example_data.json
+*_data.json
+!example_data.json
+
+# Geo-IP zoznamy (generuje update_geoip.php)
+geo-cidr.txt
+
+# Lokálne prostredie
+.env
+.env.*
+docker-compose.override.yml
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,342 @@
+Domov
+Pridať zákazníka
+Programy
+Routery
+Siete
+Účet
+Blokovaní
+Kôš
+Používatelia
+Záloha
+Odhlásiť
+Svetlý / tmavý režim
+Prepnúť tému
+Hľadať: zmluva · meno · IP · MAC  (min. 4 znaky)
+Hľadať
+Autor webu:
+Prihlásenie
+Neplatná relácia, skús znova.
+Nesprávne meno alebo heslo.
+meno
+heslo
+Prihlásiť
+Prístup zamietnutý
+Prístup z vašej polohy nie je povolený
+Z tejto IP adresy nemáte povolený prístup k tejto aplikácii.
+Chyba 403 · prístup obmedzený geograficky
+Na túto sekciu nemáš oprávnenie.
+Pripojený
+Dočasne odpojený
+Odpojený neplatič
+Ukončená zmluva
+Dočasne
+Neplatič
+Ukončená
+— všetky —
+Zobraziť:
+všetko
+Zrušiť filter
+zobrazených <b>%d</b> z <b>%d</b>
+Výsledky hľadania: %s
+Zákazníci
+Stav
+Číslo zmluvy
+Zákazník
+Adresa
+Mesto
+Telefón
+Sieť
+Program
+Zmenil
+Zmena
+Nič sa nenašlo.
+Zatiaľ žiadne zmeny.
+Zmazať zákazníka a zrušiť na routeri?
+Zmazať
+Dočasne odpojení
+Neplatiči
+Výpovede
+Neplatná relácia.
+IP %s uvoľnená z %s na %s.
+Chyba: %s
+Blokovaní zákazníci
+Číta sa priamo z MikroTikov. Každý stav má vlastný address-list:
+dočasne
+neplatič
+výpoveď
+„Uvoľniť" odoberie IP z firewallu (nemení záznam zákazníka) — hodí sa aj na osirené IP po zmazaní.
+nedostupný
+Spojenie zlyhalo: %s — skontroluj host/API údaje v Routery.
+drop pravidlo OK
+chýba drop pravidlo
+Komentár (MT)
+Akcia
+(bez mena)
+zmazaný (osirené)
+neznáma IP
+bez záznamu
+Uvoľniť %s z %s na %s?
+Uvoľniť
+Žiadne IP.
+Žiadne aktívne routery.
+Záznam v koši neexistuje.
+Zákazník obnovený.
+MikroTik: %s
+Zákazník trvalo zmazaný.
+Kôš — zmazaní zákazníci (automatické odstránenie po 30 dňoch)
+Zmazal
+Zostáva
+Akcie
+Kôš je prázdny.
+%d dní
+Obnoviť
+Trvalo zmazať %s? Toto sa nedá vrátiť.
+Zmazať natrvalo
+Keď zákazníka zmaže používateľ (rola user), presunie sa sem a po 30 dňoch sa odstráni automaticky. Admin a administrátor mažú natvrdo hneď, a tu vedia obnoviť alebo zmazať natrvalo.
+Geo-ochrana je VYPNUTÁ → každý prejde.
+LAN/privátna IP → vždy povolené.
+IP je v allowliste → vždy povolené.
+IP patrí do povolených rozsahov (CIDR zoznam) → prejde.
+IP NIE je v povolených rozsahoch → toto sa zablokuje (403).
+Krajina %s je povolená (cez Cloudflare) → prejde.
+Krajina %s nie je povolená → blok (403).
+Krajina/rozsahy sa NEZISTILI (chýba CIDR zoznam aj Cloudflare hlavička) → appka pustí (fail-open). TOTO je dôvod, prečo to neblokuje. Spusti update_geoip.php.
+client_ip() (vyhodnotená)
+CIDR zoznam (súbor)
+%s — %d rozsahov
+%s — CHÝBA / prázdny
+IP v CIDR zozname?
+ÁNO
+NIE
+— (chýba; nejdeš cez Cloudflare)
+— (chýba)
+REMOTE_ADDR (priame spojenie)
+Diagnostika prístupu (geo / IP)
+Geo-ochrana:
+vypnutá
+zapnutá
+povolené krajiny:
+Hlavička / hodnota
+Čo server vidí
+Ak je „CF-IPCountry" prázdne, Cloudflare neposiela krajinu alebo ju Nginx Proxy Manager neprepúšťa.
+Riešenie: v Cloudflare zapni pridávanie krajiny do hlavičiek a over, že doména ide cez Cloudflare proxy (oranžový mráčik).
+Zákazník neexistuje.
+Zákazník zmazaný, ale na MikroTiku sa nepodarilo zrušiť: %s
+Zákazník zmazaný.
+Zákazník presunutý do koša. Automaticky sa zmaže o 30 dní, dovtedy ho admin môže obnoviť.
+zákazník #%d
+IP %s je na MikroTiku „%s“ už obsadená zákazníkom: %s. Uloženie zamietnuté — zvoľ inú IP alebo iný MikroTik.
+Uložené. (Bez priradenej MikroTik siete sa na zariadenie nič neaplikovalo.)
+Uložené a aplikované na MikroTik: %s
+Uložené, ale aplikácia na MikroTik zlyhala: %s
+Stav pripojenia
+Osoba / Firma
+Meno
+Priezvisko
+Firma
+Ulica
+Číslo domu
+Vchod
+Poschodie
+Mail
+Technické údaje
+Typ pripojenia
+DHCP / statická (IP + MAC)
+PPPoE (login + heslo)
+PPPoE login
+napr. novak
+PPPoE heslo
+PPPoE profil
+(rýchlosť)
+napr. 80Mbps
+MikroTik (router)
+— vyber —
+Sieť / skupina (nadradená fronta)
+— žiadna —
+Reálna rýchlosť Up (Mbps)
+napr. 5
+Reálna rýchlosť Down (Mbps)
+napr. 20
+Zariadenie
+Router
+Bridge
+AP
+Sieť / Typ (obec)
+Poznámka
+Po výbere programu sa Reálna rýchlosť Up/Down prepíše na rýchlosť balíka — môžeš ju potom ručne doladiť. Reálna rýchlosť má prednosť pred programom (program je len „rola"); prázdne polia → použije sa rýchlosť programu. Nadradená fronta sa berie zo siete, inak z routera.
+Uložiť a aplikovať
+Návrat
+Pozor — „Uložiť a aplikovať“ sa naživo zapíše do MikroTiku
+Po uložení appka rovno zasiahne do vybraného MikroTiku podľa zvoleného stavu a programu:
+<b>Pripojený</b> — vytvorí/zapne DHCP lease (IP + MAC) a Simple Queue s rýchlosťou programu, vyradí IP z blokovacieho zoznamu.
+<b>Dočasne odpojený / Odpojený neplatič</b> — fronta ostane na normálnej rýchlosti, IP sa pridá do firewall address-listu podľa stavu (dočasne → docasne_odpojeni, neplatič → neplatici). Blok zabezpečí drop pravidlo na MikroTiku. Prehľad a uvoľnenie v sekcii Blokovaní.
+<b>Ukončená zmluva</b> — DHCP lease aj Simple Queue z MikroTiku <b>odstráni</b> a IP pridá do address-listu výpovedí (vypovede), takže ostane blokovaná aj bez fronty.
+Zmena programu prepíše rýchlosť (max-limit) na fronte. Zmena IP/MAC sa premietne do lease aj fronty. Ak má router zapnuté „Spravovať ARP", appka pri Pripojený/Dočasne/Neplatič pridá aj statický ARP záznam (IP+MAC) a pri Ukončenej ho zmaže — pre reply-only siete je to nutné, inak zákazník nepôjde (treba vyplnené MAC).
+Existujúce fronty appka prevezme podľa target IP (aj keď majú na MikroTiku „ľudský“ názov) — neprepíše názov a nevytvorí duplikát, len upraví rýchlosť/stav. To isté platí pre DHCP lease (podľa MAC, inak podľa IP). Čo sa stalo, nájdeš nižšie v Histórii.
+História
+Dátum
+Kto
+Udalosť
+Zatiaľ žiadne záznamy.
+Sieť zmazaná.
+Vyplň router aj názov siete.
+Sieť uložená.
+Upraviť sieť #%d
+Nová sieť / skupina
+Názov siete
+napr. Klienti sever
+Podsieť
+(voliteľné)
+Nadradená fronta na MikroTiku
+(prázdne = rovnaké ako názov)
+aktívna
+Uložiť
+Nová
+Siete / skupiny
+Názov
+Nadradená fronta
+Zákazníkov
+Aktívna
+Zatiaľ žiadne siete.
+áno
+nie
+Zmazať sieť? (zákazníci ostanú, len sa im zruší priradenie)
+Sieť = agregačná (nadradená) fronta na konkrétnom MikroTiku. Zákazník v karte vyberie sieť a appka mu nastaví túto frontu ako parent.
+Nemôžeš prideliť rolu vyššiu než máš ty.
+Meno: 3–32 znakov, len písmená/čísla/._-
+Heslo musí mať aspoň 6 znakov.
+Používateľ s týmto menom už existuje.
+Používateľ %s (%s) vytvorený.
+Používateľ neexistuje.
+Nemôžeš meniť heslo účtu s vyššou rolou.
+Heslo zmenené.
+Vlastnú rolu si meniť nemôžeš.
+Na túto zmenu nemáš oprávnenie.
+Neplatná rola.
+Nemôžeš odobrať poslednú rolu administrator.
+Rola zmenená na %s.
+Nemôžeš zmazať sám seba.
+Nemôžeš zmazať účet s vyššou rolou.
+Nemôžeš zmazať posledného administrátora.
+Používateľ %s zmazaný.
+Nový používateľ
+napr. technik1
+Heslo (min. 6)
+Generovať heslo
+Rola
+user
+admin
+administrator
+Vytvoriť účet
+Posledné prihlásenie
+Reset hesla
+(ty)
+nikdy
+nové heslo
+Gen
+Reset
+Zmazať používateľa %s?
+Úrovne: administrator &gt; admin &gt; user. Spravovať (zmazať, zmeniť heslo, zmeniť rolu) môžeš len účty s rovnakou alebo nižšou rolou. Admin sa teda nedotkne administrátora. Heslo si každý mení sám v sekcii Účet.
+Program uložený.
+Upraviť program #%d
+Nový program
+Agregácia
+Aktívny
+Download Skupina (Mbps)
+Upload Skupina (Mbps)
+Download Užívateľ (Mbps)
+Upload Užívateľ (Mbps)
+Nový
+Zoznam programov
+Program bez rýchlosti (DL/UL Užívateľ = 0, napr. IP TV / GPON) nevytvára frontu — len DHCP lease.
+Súčasné heslo nesedí.
+Nové heslo musí mať aspoň 6 znakov.
+Nové heslá sa nezhodujú.
+Heslo bolo zmenené.
+Zmena hesla – %s
+Súčasné heslo
+Nové heslo (min. 6 znakov)
+Nové heslo znova
+Zmeniť heslo
+Router zmazaný.
+router neexistuje
+Test %s: %s
+Router uložený.
+Upraviť router #%d
+Nový router
+Názov (site)
+Partizánske
+Host / IP
+API port
+API user
+API heslo
+(nemeniť)
+DHCP server
+SSL (8729)
+Sieť / typ siete
+(pre zákazníkov tohto MikroTiku)
+napr. názov obce
+Nadradená fronta / parent
+napr. Klienti
+Spravovať ARP
+(reply-only sieť)
+ARP interface
+(presný názov, napr. "ether1 - Switch")
+aktívny
+Host
+Port
+User
+Zatiaľ žiadne routery — pridaj prvý hore.
+Test
+Zmazať router?
+Na routeri musí byť povolené API:
+(port 8728), prípadne api-ssl (8729).
+Nedá sa otvoriť dočasná záloha.
+FTP prenos zlyhal
+Nepripojil sa na FTP server.
+Zlé meno alebo heslo.
+Nahratie na FTP zlyhalo (cesta/práva?).
+Server nemá curl ani ftp rozšírenie.
+Neplatný token, skús znova.
+FTP záloha je podporovaná len pre SQLite.
+Vyplň aspoň host/IP a meno.
+Snímok databázy sa nepodarilo vytvoriť.
+Záloha nahratá na FTP: %s
+FTP záloha zlyhala: %s
+Obnova odtiaľto je podporovaná len pre SQLite.
+Súbor sa nenahral. Vyber platný .sqlite súbor.
+Nahratý súbor nie je platná SQLite databáza.
+Záloha nevyzerá ako databáza tejto aplikácie (chýba: %s).
+Súbor sa nepodarilo prečítať ako databázu.
+Databázu sa nepodarilo prepísať (práva na súbor?).
+Databáza bola obnovená zo zálohy. Pôvodná sa odložila ako .bak vedľa databázy.
+Automatické sťahovanie zálohy je podporované len pre SQLite. Pre MySQL použi mysqldump na serveri.
+Databáza sa nenašla.
+Zálohu sa nepodarilo vytvoriť.
+Ručná záloha databázy
+Stiahne sa kompletná kópia databázy (zákazníci, routery, siete, používatelia, história zmien) ako jeden súbor <code>.sqlite</code>. Súbor si odlož na bezpečné miesto.
+Veľkosť databázy:
+Posledná zmena:
+Stiahnuť zálohu
+Tip: záloha je konzistentný snímok, dá sa robiť aj počas behu. Obnova = nahradiť súbor databázy touto kópiou (keď appka nebeží) a reštartovať kontajner.
+Databáza beží na MySQL. Automatické sťahovanie odtiaľto nie je podporované – zálohu sprav cez <code>mysqldump</code> na serveri.
+Záloha na FTP server
+Nahrá aktuálny snímok databázy priamo na FTP server. Súbor sa pomenuje automaticky (<code>ispadmin-RRRRMMDD-HHMMSS.sqlite</code>).
+napr. backup.server.sk
+Používateľ
+Heslo
+Cesta na serveri
+(priečinok alebo súbor)
+napr. /zalohy/ispadmin/
+Zabezpečenie
+FTP (bez šifrovania)
+FTPS (TLS)
+Zálohovať na FTP
+Ak cesta končí lomkou alebo je priečinok, názov súboru sa doplní automaticky. Heslo sa nikam neukladá – použije sa len na tento prenos.
+Obnoviť zo zálohy
+Nahraj predtým stiahnutý súbor <code>.sqlite</code>. Týmto sa <strong>prepíše celá aktuálna databáza</strong> – všetci zákazníci, routery aj používatelia sa nahradia obsahom zálohy.
+Pre istotu sa aktuálna databáza pred prepísaním odloží ako <code>.bak</code> súbor vedľa nej. Po obnove sa môže zmeniť aj zoznam prihlásení/hesiel – prihlás sa podľa údajov zo zálohy.
+Naozaj prepísať aktuálnu databázu obsahom tejto zálohy? Túto akciu nemožno vrátiť (okrem .bak súboru).
+Vybrať súbor
+Nevybraný žiadny súbor
+Obnoviť databázu

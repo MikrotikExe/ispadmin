@@ -1,0 +1,23 @@
+# mt-ispadmin – smerovanie do public/ + ochrana citlivych suborov.
+# Cely projekt nahraj do web rootu subdomeny. Appka pobezi na korenovej URL.
+
+# Vypni vypis obsahu priecinkov (ak by host neumoznil tento riadok a hodil 500,
+# zmaz len tento jeden riadok).
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Zakaz priameho HTTP pristupu ku konfiguracii, kniznici, scheme a datam.
+    RewriteRule ^(config\.php|schema\.sql|README\.md)$ - [F,L]
+    RewriteRule ^(lib|data|lang)(/|$) - [F,L]
+
+    # Co uz smeruje do public/, nechaj tak (zabrani slucke).
+    RewriteRule ^public/ - [L]
+
+    # Koren -> prihlasenie.
+    RewriteRule ^$ public/login.php [L]
+
+    # Vsetko ostatne posli do public/.
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>

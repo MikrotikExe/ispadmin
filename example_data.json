@@ -1,0 +1,86 @@
+{
+ "router": {
+  "name": "Ukážková obec",
+  "host": "10.0.0.1",
+  "dhcp_server": "dhcp1",
+  "siet": "Ukážková obec",
+  "parent_queue": "Klienti 192.168.100.0/24",
+  "manage_arp": 0,
+  "arp_interface": ""
+ },
+ "networks": [
+  {
+   "name": "Klienti 192.168.100.0/24",
+   "subnet": "192.168.100.0/24",
+   "parent_queue": "Klienti 192.168.100.0/24"
+  }
+ ],
+ "customers": [
+  {
+   "status": "pripojeny",
+   "meno": "Ján",
+   "priezvisko": "Vzorový",
+   "firma": "",
+   "ulica": "Hlavná",
+   "cislo_domu": "1",
+   "mesto": "Ukážková obec",
+   "telefon": "0900123456",
+   "ip": "192.168.100.10",
+   "mac": "AA:BB:CC:DD:EE:01",
+   "network": "Klienti 192.168.100.0/24",
+   "siet": "Ukážková obec",
+   "program": "Home Štandard",
+   "real_ul": 5120,
+   "real_dl": 28672,
+   "conn_type": "dhcp",
+   "pppoe_user": "",
+   "pppoe_pass": "",
+   "pppoe_profile": "",
+   "poznamka": "Ukážkový zákazník (DHCP + Simple Queue)"
+  },
+  {
+   "status": "pripojeny",
+   "meno": "Eva",
+   "priezvisko": "Príkladová",
+   "firma": "",
+   "ulica": "Školská",
+   "cislo_domu": "2",
+   "mesto": "Ukážková obec",
+   "telefon": "0900654321",
+   "ip": "",
+   "mac": "",
+   "network": "",
+   "siet": "Ukážková obec",
+   "program": "TV + Optika Maxi",
+   "real_ul": 20480,
+   "real_dl": 81920,
+   "conn_type": "pppoe",
+   "pppoe_user": "eva.prikladova",
+   "pppoe_pass": "zmen-toto-heslo",
+   "pppoe_profile": "80Mbps",
+   "poznamka": "Ukážkový zákazník (PPPoE)"
+  },
+  {
+   "status": "neplatic",
+   "meno": "Peter",
+   "priezvisko": "Testovací",
+   "firma": "Firma s.r.o.",
+   "ulica": "Dlhá",
+   "cislo_domu": "3",
+   "mesto": "Ukážková obec",
+   "telefon": "",
+   "ip": "192.168.100.12",
+   "mac": "AA:BB:CC:DD:EE:03",
+   "network": "Klienti 192.168.100.0/24",
+   "siet": "Ukážková obec",
+   "program": "Office Klasik",
+   "real_ul": 20480,
+   "real_dl": 20480,
+   "conn_type": "dhcp",
+   "pppoe_user": "",
+   "pppoe_pass": "",
+   "pppoe_profile": "",
+   "poznamka": "Ukážka stavu neplatič — IP skončí v address-liste"
+  }
+ ]
+}
