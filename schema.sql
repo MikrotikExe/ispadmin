@@ -63,13 +63,14 @@ CREATE TABLE customers (
   program_id INT NULL,
   zariadenie VARCHAR(32) NOT NULL DEFAULT 'Router',
   ont_sn VARCHAR(64) NOT NULL DEFAULT '',
+  circuit_id VARCHAR(190) NOT NULL DEFAULT '',
   poznamka VARCHAR(255) NOT NULL DEFAULT '',
   updated_at DATETIME NULL,
   updated_by VARCHAR(64) NULL,
   deleted_at DATETIME NULL,
   deleted_by VARCHAR(64) NULL,
   prev_status VARCHAR(32) NULL,
-  KEY (router_id), KEY (program_id), KEY (contract_no), KEY (ip), KEY (mac)
+  KEY (router_id), KEY (program_id), KEY (contract_no), KEY (ip), KEY (mac), KEY (circuit_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE change_log (

@@ -342,4 +342,7 @@ return [
     'Vybrať súbor' => 'Alege fișier',
     'Nevybraný žiadny súbor' => 'Niciun fișier selectat',
     'Obnoviť databázu' => 'Restaurează baza de date',
+    '(DHCP Option 82 — voliteľné)' => '(DHCP Option 82 — opțional)',
+    'napr. identifikátor portu / okruhu od operátora' => 'ex. identificatorul portului / circuitului de la operator',
+    'Identifikátor okruhu z DHCP Option 82. Zatiaľ sa len eviduje — automatické prideľovanie IP podľa Circuit ID zatiaľ nie je implementované.' => 'Identificatorul circuitului din DHCP Option 82. Deocamdată este doar înregistrat — alocarea automată a IP-ului după Circuit ID nu este încă implementată.',
 ];

@@ -73,6 +73,7 @@ fieldset.panel legend{padding:0 8px;color:var(--navy);font-weight:800;font-size:
 
 /* mriezka poli */
 .grid{display:grid;gap:12px}
+.g1{grid-template-columns:1fr}
 .g2{grid-template-columns:1fr 1fr}
 .g3{grid-template-columns:1fr 1fr 1fr}
 .g4{grid-template-columns:repeat(4,1fr)}
@@ -159,7 +160,7 @@ code{background:var(--code-bg);padding:1px 6px;border-radius:5px;font-size:12px}
 
 /* ---------- MOBIL ---------- */
 @media(max-width:720px){
-  .g2,.g3,.g4{grid-template-columns:1fr}
+  .g1,.g2,.g3,.g4{grid-template-columns:1fr}
   .brand{flex-direction:column;align-items:flex-start;gap:10px}
   .brand-right{width:100%;justify-content:space-between}
   .topnav{gap:14px}

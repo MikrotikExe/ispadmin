@@ -98,6 +98,9 @@ function ensure_pppoe(PDO $pdo, string $driver): void
         'pppoe_user'    => ['mysql' => "VARCHAR(120) NOT NULL DEFAULT ''", 'sqlite' => "TEXT NOT NULL DEFAULT ''"],
         'pppoe_pass'    => ['mysql' => "VARCHAR(120) NOT NULL DEFAULT ''", 'sqlite' => "TEXT NOT NULL DEFAULT ''"],
         'pppoe_profile' => ['mysql' => "VARCHAR(120) NOT NULL DEFAULT ''", 'sqlite' => "TEXT NOT NULL DEFAULT ''"],
+        // DHCP Option 82 agent circuit ID (napr. NBN AVC ID / port na DSLAMe).
+        // Zatial len evidencia - automaticke prideklovanie IP podla circuit ID pride neskor.
+        'circuit_id'    => ['mysql' => "VARCHAR(190) NOT NULL DEFAULT ''", 'sqlite' => "TEXT NOT NULL DEFAULT ''"],
     ];
     try {
         foreach ($add as $col => $types) {

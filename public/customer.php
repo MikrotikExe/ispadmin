@@ -92,6 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'pppoe_user'  => $f('pppoe_user'),
         'pppoe_pass'  => $f('pppoe_pass'),
         'pppoe_profile' => $f('pppoe_profile'),
+        'circuit_id'  => $f('circuit_id'),
         'program_id'  => (int)$f('program_id') ?: null,
         'real_ul_kbit'=> (float)$f('real_ul') > 0 ? (int)round((float)$f('real_ul') * 1024) : 0,
         'real_dl_kbit'=> (float)$f('real_dl') > 0 ? (int)round((float)$f('real_dl') * 1024) : 0,
@@ -159,7 +160,7 @@ $c = [
     'contract_no' => '', 'status' => 'pripojeny', 'meno' => '', 'priezvisko' => '', 'firma' => '',
     'ulica' => '', 'cislo_domu' => '', 'vchod' => '', 'poschodie' => '', 'mesto' => '',
     'telefon' => '', 'mail' => '', 'router_id' => '', 'network_id' => '', 'siet' => '', 'ip' => '', 'mac' => '',
-    'conn_type' => 'dhcp', 'pppoe_user' => '', 'pppoe_pass' => '', 'pppoe_profile' => '',
+    'conn_type' => 'dhcp', 'pppoe_user' => '', 'pppoe_pass' => '', 'pppoe_profile' => '', 'circuit_id' => '',
     'program_id' => '', 'real_ul_kbit' => 0, 'real_dl_kbit' => 0, 'zariadenie' => 'Router', 'poznamka' => '',
 ];
 if ($id) {
@@ -274,6 +275,13 @@ function sel($a, $b): string { return (string)$a === (string)$b ? ' selected' : 
       </div>
       <div class="cell"><label>IP</label><input name="ip" value="<?= h($c['ip']) ?>" placeholder="172.16.0.0"></div>
       <div class="cell"><label>MAC</label><input name="mac" value="<?= h($c['mac']) ?>" placeholder="AA:BB:CC:DD:EE:FF"></div>
+    </div>
+    <div class="grid g1">
+      <div class="cell">
+        <label>Circuit ID <span class="muted"><?= t('(DHCP Option 82 — voliteľné)') ?></span></label>
+        <input name="circuit_id" value="<?= h($c['circuit_id'] ?? '') ?>" placeholder="<?= h(t('napr. identifikátor portu / okruhu od operátora')) ?>">
+        <div class="hint"><?= t('Identifikátor okruhu z DHCP Option 82. Zatiaľ sa len eviduje — automatické prideľovanie IP podľa Circuit ID zatiaľ nie je implementované.') ?></div>
+      </div>
     </div>
     <div class="grid g4">
       <div class="cell">

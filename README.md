@@ -16,6 +16,7 @@ Lightweight web-based customer management for small ISPs, built on top of the **
 - Optional geo-blocking of the login (allow selected countries only, via Cloudflare header or offline CIDR lists)
 - **10 languages** — language picker on the login screen and in the header (Slovak, Czech, English, German, Polish, Hungarian, Romanian, Ukrainian, Latvian, Russian)
 - Light / dark theme, responsive UI
+- Optional `Circuit ID` field per customer (DHCP Option 82) — recorded for reference; automatic IP assignment by Circuit ID is planned, see [issue #1](https://github.com/MikrotikExe/ispadmin/issues/1)
 
 ## Screenshots
 
@@ -102,6 +103,14 @@ Address-list names are configurable in `config.php` (`block_lists`).
 | Contract terminated | deletes lease + queue + address-list entry |
 
 PPPoE customers are managed through `/ppp/secret` (login, password, profile) instead of lease/queue.
+
+## Circuit ID (DHCP Option 82)
+
+Each customer record has an optional **Circuit ID** field for the DHCP Option 82 agent circuit identifier (for example an NBN AVC ID, or a port identifier from a DSLAM or access switch).
+
+Right now the field is **stored for reference only** — nothing is provisioned from it. The intent is to key customers off the physical circuit rather than the MAC address, so that replacing a customer's modem doesn't require re-entering anything. Automatic IP assignment driven by Circuit ID (via RouterOS 7 `/ip/dhcp-server/matcher`) is planned; progress and the technical discussion live in [issue #1](https://github.com/MikrotikExe/ispadmin/issues/1).
+
+If you run Option 82 in production, a sample of your real circuit ID format in that issue would be very welcome.
 
 ## Plans and aggregation
 
