@@ -7,6 +7,9 @@ RUN apt-get update \
  && a2enmod rewrite \
  && rm -rf /var/lib/apt/lists/*
 
+# Neprezradzuj verziu PHP v hlavicke X-Powered-By
+RUN printf 'expose_php = Off\n' > /usr/local/etc/php/conf.d/zz-hardening.ini
+
 # DocumentRoot smeruje na public/ (config.php a lib/ ostanu mimo webu)
 COPY docker/000-default.conf /etc/apache2/sites-available/000-default.conf
 COPY docker/ports.conf /etc/apache2/ports.conf

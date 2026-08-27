@@ -39,6 +39,8 @@ function lang_current(): string
             setcookie(LANG_COOKIE, $lang, [
                 'expires'  => time() + 86400 * 365,
                 'path'     => '/',
+                'httponly' => true,
+                'secure'   => function_exists('is_https') ? is_https() : false,
                 'samesite' => 'Lax',
             ]);
         }

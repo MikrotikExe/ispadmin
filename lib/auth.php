@@ -2,11 +2,33 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/lang.php';
 
+/**
+ * Bezi aplikacia cez HTTPS? Za reverse proxy (nginx, Cloudflare) sa to pozna
+ * z hlavicky X-Forwarded-Proto, lebo samotne spojenie proxy->app je HTTP.
+ */
+function is_https(): bool
+{
+    if (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off') return true;
+    if (strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https') return true;
+    if ((int)($_SERVER['SERVER_PORT'] ?? 0) === 443) return true;
+    return false;
+}
+
 function boot_session(): void
 {
     if (session_status() === PHP_SESSION_NONE) {
         $cfg = require __DIR__ . '/../config.php';
         session_name($cfg['session_name']);
+        // HttpOnly: cookie nie je citatelna z JavaScriptu (obrana proti XSS krádeži relacie)
+        // Secure:   posiela sa len cez HTTPS - zapina sa automaticky, aby to fungovalo aj na LAN cez HTTP
+        // SameSite: Lax bráni odoslaniu cookie pri cudzich POST poziadavkach (CSRF)
+        session_set_cookie_params([
+            'lifetime' => 0,
+            'path'     => '/',
+            'httponly' => true,
+            'secure'   => is_https(),
+            'samesite' => 'Lax',
+        ]);
         session_start();
     }
 }
@@ -23,8 +45,8 @@ function current_user(): ?string
 function geo_block_page(string $ip): void
 {
     $cfg = require __DIR__ . '/../config.php';
-    $brandPre  = htmlspecialchars($cfg['brand_pre'] ?? 'moon', ENT_QUOTES);
-    $brandPost = htmlspecialchars($cfg['brand_post'] ?? 'site', ENT_QUOTES);
+    $brandPre  = htmlspecialchars($cfg['brand_pre'] ?? 'isp', ENT_QUOTES);
+    $brandPost = htmlspecialchars($cfg['brand_post'] ?? 'admin', ENT_QUOTES);
     $ipEsc = htmlspecialchars($ip, ENT_QUOTES);
     $lng      = lang_current();
     $tTitle   = h(t('Prístup zamietnutý'));
