@@ -178,6 +178,21 @@ The import is idempotent — existing customers (same IP or PPPoE login) are ski
 
 All of them run in preview mode until you add `--apply`.
 
+**Run them as the web user.** Inside Docker the app runs as `www-data`, and the SQLite
+database has to stay writable by it. If you run a script as root, the database file ends up
+owned by root and the web interface then fails with *"attempt to write a readonly database"*:
+
+```bash
+sudo docker exec -u www-data -it mt-ispadmin php /var/www/html/import_json.php \
+     /var/www/html/my_site.json --apply
+```
+
+If it has already happened, fix the ownership with:
+
+```bash
+sudo docker exec mt-ispadmin chown -R www-data:www-data /data
+```
+
 ## Languages / adding a translation
 
 The UI ships in 10 languages; users pick their language on the login screen (stored in a cookie, auto-detected from the browser on first visit). Slovak is the source language, English is the fallback for missing strings.

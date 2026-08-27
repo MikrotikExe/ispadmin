@@ -1,10 +1,12 @@
 <?php
 /**
- * Jednorazová oprava: dekóduje RouterOS escapy diakritiky (\E1, \8A ...) v CP1250
- * v už naimportovaných záznamoch. Spustenie:
- *   náhľad: sudo docker exec -it mt-ispadmin php /var/www/html/fix_encoding.php
- *   oprava: sudo docker exec -it mt-ispadmin php /var/www/html/fix_encoding.php --apply
- * Je idempotentný (druhé spustenie už nič nezmení).
+ * One-off repair: decodes RouterOS diacritics escapes (\E1, \8A ...) in CP1250
+ * for records that were already imported.
+ *
+ *   preview: sudo docker exec -u www-data -it mt-ispadmin php /var/www/html/fix_encoding.php
+ *   repair:  sudo docker exec -u www-data -it mt-ispadmin php /var/www/html/fix_encoding.php --apply
+ *
+ * Idempotent - running it a second time changes nothing.
  */
 require_once __DIR__ . '/lib/db.php';
 

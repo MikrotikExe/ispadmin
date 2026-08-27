@@ -1,12 +1,13 @@
 <?php
 /**
- * Doplní reálnu rýchlosť (Up/Down) zákazníkom z MikroTiku — prečíta max-limit
- * Simple Queue podľa target IP. Z MikroTiku len ČÍTA (žiadny zápis na zariadenie).
+ * Fills in each customer's actual speed (Up/Down) by reading the max-limit of their
+ * Simple Queue from the MikroTik, matched on the target IP.
+ * READ-ONLY as far as the router is concerned - nothing is written to the device.
  *
- *   náhľad:        sudo docker exec -it mt-ispadmin php /var/www/html/pull_speeds.php
- *   doplniť:       sudo docker exec -it mt-ispadmin php /var/www/html/pull_speeds.php --apply
- *   len 1 router:  ... pull_speeds.php --apply --router=2
- *   prepísať aj vyplnené: ... pull_speeds.php --apply --force
+ *   preview:        sudo docker exec -u www-data -it mt-ispadmin php /var/www/html/pull_speeds.php
+ *   apply:          sudo docker exec -u www-data -it mt-ispadmin php /var/www/html/pull_speeds.php --apply
+ *   one router:     ... pull_speeds.php --apply --router=2
+ *   overwrite set:  ... pull_speeds.php --apply --force
  */
 require_once __DIR__ . '/lib/mikrotik.php';
 

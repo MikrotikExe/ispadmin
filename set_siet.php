@@ -1,9 +1,13 @@
 <?php
 /**
- * Nastavi pole "Siet / Typ (obec)" zakaznikom (bez vplyvu na program/rychlost/MikroTik).
+ * Bulk-sets the "Network / type" field on customers.
+ * Does not touch their plan, speed or anything on the MikroTik.
  *
- *   docker exec -it mt-ispadmin php /var/www/html/set_siet.php "Bošany"                       # vsetkym
- *   docker exec -it mt-ispadmin php /var/www/html/set_siet.php "Bošany" --router="Bošany"     # len danemu routeru
+ *   docker exec -u www-data -it mt-ispadmin php /var/www/html/set_siet.php "North Side"
+ *   docker exec -u www-data -it mt-ispadmin php /var/www/html/set_siet.php "North Side" --router="Example Town"
+ *
+ *   --router=NAME   only customers on that router
+ *   --from=VALUE    only customers whose current value matches
  */
 require_once __DIR__ . '/lib/db.php';
 

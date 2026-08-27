@@ -8,7 +8,7 @@
  *   import:   php import_json.php data.json --apply
  *
  * Inside the Docker container:
- *   docker exec -it mt-ispadmin php /var/www/html/import_json.php /var/www/html/data.json --apply
+ *   docker exec -u www-data -it mt-ispadmin php /var/www/html/import_json.php /var/www/html/data.json --apply
  *
  * Safe to re-run: existing customers (same IP, PPPoE login or Circuit ID on that router)
  * are skipped. Nothing is written to the MikroTik - only to the app's own database.

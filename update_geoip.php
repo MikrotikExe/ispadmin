@@ -1,13 +1,12 @@
 <?php
 /**
- * Stiahne zoznam IP rozsahov (CIDR) povolených krajín a uloží ich do geo.cidr_file.
- * Zdroj: ipdeny.com (agregované zóny, IPv4 + IPv6). Server musí mať prístup na internet.
+ * Downloads the IP ranges (CIDR) of the allowed countries and stores them in geo.cidr_file.
+ * Source: ipdeny.com (aggregated zones, IPv4 + IPv6). The server needs internet access.
  *
- * Spustenie (v kontajneri):
- *   docker exec -it mt-ispadmin php /var/www/html/update_geoip.php
- *   docker exec -it mt-ispadmin php /var/www/html/update_geoip.php sk,cz
+ *   docker exec -u www-data -it mt-ispadmin php /var/www/html/update_geoip.php
+ *   docker exec -u www-data -it mt-ispadmin php /var/www/html/update_geoip.php sk,cz
  *
- * Odporúčanie: pridať do cronu na serveri (napr. raz týždenne), zoznamy sa občas menia.
+ * Worth adding to cron (weekly is plenty) - the published lists change over time.
  */
 require_once __DIR__ . '/lib/db.php';
 $cfg = require __DIR__ . '/config.php';
