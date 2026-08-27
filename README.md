@@ -16,7 +16,7 @@ Lightweight web-based customer management for small ISPs, built on top of the **
 - Optional geo-blocking of the login (allow selected countries only, via Cloudflare header or offline CIDR lists)
 - **10 languages** — language picker on the login screen and in the header (Slovak, Czech, English, German, Polish, Hungarian, Romanian, Ukrainian, Latvian, Russian)
 - Light / dark theme, responsive UI
-- Optional `Circuit ID` field per customer (DHCP Option 82) — recorded for reference; automatic IP assignment by Circuit ID is planned, see [issue #1](https://github.com/MikrotikExe/ispadmin/issues/1)
+- **DHCP Option 82 support** — bind a customer's lease to the physical circuit (Agent Circuit ID) instead of the MAC address, so swapping a modem needs no reconfiguration
 
 ## Screenshots
 
@@ -106,11 +106,32 @@ PPPoE customers are managed through `/ppp/secret` (login, password, profile) ins
 
 ## Circuit ID (DHCP Option 82)
 
-Each customer record has an optional **Circuit ID** field for the DHCP Option 82 agent circuit identifier (for example an NBN AVC ID, or a port identifier from a DSLAM or access switch).
+Each customer has an optional **Circuit ID** field holding the DHCP Option 82 agent circuit identifier — for example an NBN AVC ID in Australia, or a port identifier from a DSLAM or access switch.
 
-Right now the field is **stored for reference only** — nothing is provisioned from it. The intent is to key customers off the physical circuit rather than the MAC address, so that replacing a customer's modem doesn't require re-entering anything. Automatic IP assignment driven by Circuit ID (via RouterOS 7 `/ip/dhcp-server/matcher`) is planned; progress and the technical discussion live in [issue #1](https://github.com/MikrotikExe/ispadmin/issues/1).
+**When the field is filled, the app binds the DHCP lease to the circuit instead of the MAC address.** The MAC is deliberately not sent, so the customer can replace their modem and the lease still applies — no reconfiguration, no manual re-entry. The router matches the lease using the `agent-circuit-id` parameter:
 
-If you run Option 82 in production, a sample of your real circuit ID format in that issue would be very welcome.
+```
+/ip dhcp-server lease add address=10.0.0.50 \
+    agent-circuit-id=41564330303032353038313730313138 server=dhcp1
+```
+
+If the Circuit ID is empty, the app falls back to the usual MAC-based lease, so existing setups are unaffected.
+
+### Entering the value
+
+RouterOS displays Option 82 identifiers as hex, but the underlying value is usually plain text. You can paste either form and the app normalises it:
+
+| What you enter | Stored / sent to the router |
+|---|---|
+| `AVC0002508170118` | `41564330303032353038313730313138` |
+| `41564330303032353038313730313138` | unchanged |
+| `0x4156433030...` | `0x` prefix stripped |
+
+A string is only treated as hex if it decodes to readable text — so a purely numeric circuit ID such as `0012345678` is correctly kept as text rather than misread as hex. To force hex interpretation of a binary identifier, prefix it with `0x`.
+
+To find the value on a running system, look at an active lease in RouterOS (`IP → DHCP Server → Leases`, the **Agent Circuit Id** field), or take it from the carrier's service order.
+
+Notes and open questions live in [issue #1](https://github.com/MikrotikExe/ispadmin/issues/1).
 
 ## Plans and aggregation
 

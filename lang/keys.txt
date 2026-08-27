@@ -341,5 +341,5 @@ Vybrať súbor
 Nevybraný žiadny súbor
 Obnoviť databázu
 (DHCP Option 82 — voliteľné)
-napr. identifikátor portu / okruhu od operátora
-Identifikátor okruhu z DHCP Option 82. Zatiaľ sa len eviduje — automatické prideľovanie IP podľa Circuit ID zatiaľ nie je implementované.
+napr. AVC0002508170118
+Ak je vyplnené, lease sa na MikroTiku viaže na okruh (Option 82) namiesto MAC adresy — výmena modemu potom nevyžaduje žiadny zásah. Zadaj čitateľný text aj hex, appka si prevod spraví sama.

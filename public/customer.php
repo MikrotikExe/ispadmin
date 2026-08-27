@@ -279,8 +279,8 @@ function sel($a, $b): string { return (string)$a === (string)$b ? ' selected' : 
     <div class="grid g1">
       <div class="cell">
         <label>Circuit ID <span class="muted"><?= t('(DHCP Option 82 — voliteľné)') ?></span></label>
-        <input name="circuit_id" value="<?= h($c['circuit_id'] ?? '') ?>" placeholder="<?= h(t('napr. identifikátor portu / okruhu od operátora')) ?>">
-        <div class="hint"><?= t('Identifikátor okruhu z DHCP Option 82. Zatiaľ sa len eviduje — automatické prideľovanie IP podľa Circuit ID zatiaľ nie je implementované.') ?></div>
+        <input name="circuit_id" value="<?= h($c['circuit_id'] ?? '') ?>" placeholder="<?= h(t('napr. AVC0002508170118')) ?>">
+        <div class="hint"><?= t('Ak je vyplnené, lease sa na MikroTiku viaže na okruh (Option 82) namiesto MAC adresy — výmena modemu potom nevyžaduje žiadny zásah. Zadaj čitateľný text aj hex, appka si prevod spraví sama.') ?></div>
       </div>
     </div>
     <div class="grid g4">

@@ -30,6 +30,55 @@ function mt_ascii(string $s): string
     return preg_replace('/[^\x20-\x7E]/', '', $s);
 }
 
+/**
+ * Normalizuje Circuit ID (DHCP Option 82) na hex retazec pre RouterOS.
+ *
+ * Pouzivatel moze zadat:
+ *   - citatelny text:  AVC0002508170118   -> 41564330303032353038313730313138
+ *   - hex z Winboxu:   4156433030...3138  -> ponecha sa
+ *   - hex s prefixom:  0x415643...        -> prefix sa odstrani
+ *
+ * RouterOS ocakava agent-circuit-id ako hex retazec.
+ */
+function mt_circuit_hex(string $s): string
+{
+    $s = trim($s);
+    if ($s === '') return '';
+    // 0x prefix (Winbox/CLI zapis)
+    if (stripos($s, '0x') === 0) {
+        $s = substr($s, 2);
+    }
+    // Vyzera to ako hex? Uzname to len vtedy, ked sa dekoduje na citatelny ASCII text.
+    // Inak by sa napr. ciselne circuit ID "0012345678" mylne povazovalo za hex.
+    if (strlen($s) >= 4 && strlen($s) % 2 === 0 && preg_match('/^[0-9A-Fa-f]+$/', $s)) {
+        $bin = @hex2bin($s);
+        if ($bin !== false && $bin !== '' && !preg_match('/[^\x20-\x7E]/', $bin)) {
+            return strtolower($s);      // je to hex citatelneho textu
+        }
+    }
+    // inak je to citatelny text -> zakoduj
+    return strtolower(bin2hex(mt_ascii($s)));
+}
+
+/**
+ * Opak mt_circuit_hex - hex prevedie na citatelny text (na zobrazenie).
+ * Ak sa neda dekodovat na tlacitelny ASCII text, vrati povodnu hodnotu.
+ */
+function mt_circuit_text(string $s): string
+{
+    $s = trim($s);
+    if ($s === '') return '';
+    if (stripos($s, '0x') === 0) $s = substr($s, 2);
+    if (strlen($s) % 2 !== 0 || !preg_match('/^[0-9A-Fa-f]+$/', $s)) {
+        return $s;   // nie je hex, zjavne uz citatelny text
+    }
+    $bin = @hex2bin($s);
+    if ($bin === false || $bin === '' || preg_match('/[^\x20-\x7E]/', $bin)) {
+        return $s;   // binarne data, nechaj hex
+    }
+    return $bin;
+}
+
 function mt_connect(array $router): array
 {
     $api = new RouterosApi();
@@ -114,6 +163,9 @@ function mt_apply_customer(int $customerId): array
 
     $ip  = trim($c['ip']);
     $mac = strtoupper(trim($c['mac']));
+    // Circuit ID (DHCP Option 82) - alternativa k MAC pri identifikacii zakaznika.
+    // RouterOS ocakava hex; pouzivatel moze zadat citatelny text aj hex (viz mt_circuit_hex).
+    $circuitHex = mt_circuit_hex((string)($c['circuit_id'] ?? ''));
     if ($ip === '' && ($c['conn_type'] ?? 'dhcp') !== 'pppoe') {
         return ['ok' => false, 'msg' => 'chýba IP'];
     }
@@ -173,12 +225,24 @@ function mt_apply_customer(int $customerId): array
             return ['ok' => true, 'msg' => $router['name'] . ': ' . implode(', ', $log)];
         }
 
-        // --- DHCP lease (len ak mame MAC; staticke IP bez DHCP preskocime) ---
-        if ($mac !== '') {
-            $leases = $api->comm('/ip/dhcp-server/lease/print', ['?mac-address' => $mac]);
-            $leaseId = $leases['items'][0]['.id'] ?? null;
-            if (!$leaseId) {
-                // prevezmi existujuci lease podla IP (aj ked ma iny zapis MAC)
+        // --- DHCP lease ---
+        // Zakaznik sa identifikuje bud MAC adresou, alebo Circuit ID (DHCP Option 82).
+        // Circuit ID ma prednost: viaze sa na fyzicky okruh, takze vymena modemu
+        // (a teda zmena MAC) nevyzaduje ziadny zasah.
+        if ($mac !== '' || $circuitHex !== '') {
+            $leaseId = null;
+            // 1) hladaj podla circuit ID (ak je zadane)
+            if ($circuitHex !== '') {
+                $byCid = $api->comm('/ip/dhcp-server/lease/print', ['?agent-circuit-id' => $circuitHex]);
+                $leaseId = $byCid['items'][0]['.id'] ?? null;
+            }
+            // 2) inak podla MAC
+            if (!$leaseId && $mac !== '') {
+                $leases = $api->comm('/ip/dhcp-server/lease/print', ['?mac-address' => $mac]);
+                $leaseId = $leases['items'][0]['.id'] ?? null;
+            }
+            // 3) prevezmi existujuci lease podla IP (aj ked ma iny zapis MAC / bez circuit ID)
+            if (!$leaseId && $ip !== '') {
                 $byIp = $api->comm('/ip/dhcp-server/lease/print', ['?address' => $ip]);
                 $leaseId = $byIp['items'][0]['.id'] ?? null;
             }
@@ -189,23 +253,29 @@ function mt_apply_customer(int $customerId): array
                     $log[] = 'lease zmazany';
                 }
             } else {
-                $args = ['address' => $ip, 'mac-address' => $mac, 'comment' => $comment];
+                $args = ['address' => $ip, 'comment' => $comment];
+                if ($circuitHex !== '') {
+                    // viazanie na okruh - MAC sa zamerne neposiela, aby lease prezil vymenu modemu
+                    $args['agent-circuit-id'] = $circuitHex;
+                } elseif ($mac !== '') {
+                    $args['mac-address'] = $mac;
+                }
                 if (trim($router['dhcp_server']) !== '') {
                     $args['server'] = trim($router['dhcp_server']);
                 }
                 if ($leaseId) {
                     $api->comm('/ip/dhcp-server/lease/set', ['.id' => $leaseId] + $args);
-                    $log[] = 'lease aktualizovany';
+                    $log[] = $circuitHex !== '' ? 'lease aktualizovany (circuit ID)' : 'lease aktualizovany';
                 } else {
                     $r = $api->comm('/ip/dhcp-server/lease/add', $args);
                     if ($r['status'] === 'error') {
                         throw new RuntimeException('lease: ' . $r['message']);
                     }
-                    $log[] = 'lease pridany';
+                    $log[] = $circuitHex !== '' ? 'lease pridany (circuit ID)' : 'lease pridany';
                 }
             }
         } else {
-            $log[] = 'bez MAC (lease neriešený)';
+            $log[] = 'bez MAC a circuit ID (lease neriešený)';
         }
 
         // --- Simple queue (realna rychlost ma prednost pred programom) ---

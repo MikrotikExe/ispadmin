@@ -343,6 +343,6 @@ return [
     'Nevybraný žiadny súbor' => 'Keine Datei ausgewählt',
     'Obnoviť databázu' => 'Datenbank wiederherstellen',
     '(DHCP Option 82 — voliteľné)' => '(DHCP Option 82 — optional)',
-    'napr. identifikátor portu / okruhu od operátora' => 'z. B. Port-/Anschlusskennung des Netzbetreibers',
-    'Identifikátor okruhu z DHCP Option 82. Zatiaľ sa len eviduje — automatické prideľovanie IP podľa Circuit ID zatiaľ nie je implementované.' => 'Anschlusskennung aus DHCP Option 82. Wird vorerst nur erfasst — die automatische IP-Vergabe anhand der Circuit ID ist noch nicht implementiert.',
+    'napr. AVC0002508170118' => 'z. B. AVC0002508170118',
+    'Ak je vyplnené, lease sa na MikroTiku viaže na okruh (Option 82) namiesto MAC adresy — výmena modemu potom nevyžaduje žiadny zásah. Zadaj čitateľný text aj hex, appka si prevod spraví sama.' => 'Wenn gesetzt, wird der Lease auf dem MikroTik an den Anschluss (Option 82) statt an die MAC-Adresse gebunden — ein Modemtausch erfordert dann keinen Eingriff. Klartext oder Hex eingeben, die App konvertiert es selbst.',
 ];
