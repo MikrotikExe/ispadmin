@@ -84,6 +84,29 @@ function t(string $s, ...$args): string
     return $args ? vsprintf($out, $args) : $out;
 }
 
+/** Slovnik konkretneho jazyka (bez ohladu na aktualne nastavenie). */
+function lang_dict_for(string $code): array
+{
+    static $cache = [];
+    if (isset($cache[$code])) return $cache[$code];
+    if ($code === 'sk') return $cache[$code] = [];
+    $f = __DIR__ . '/../lang/' . basename($code) . '.php';
+    if (!is_file($f)) return $cache[$code] = [];
+    $a = require $f;
+    return $cache[$code] = is_array($a) ? $a : [];
+}
+
+/**
+ * Preklad do konkretneho jazyka bez ohladu na jazyk rozhrania.
+ * Pouziva sa pre audit log, ktory ma byt jednotny (anglicky) nezavisle od toho,
+ * v akom jazyku ma prihlaseny operator nastavene rozhranie.
+ */
+function t_in(string $lang, string $s, ...$args): string
+{
+    $out = lang_dict_for($lang)[$s] ?? $s;
+    return $args ? vsprintf($out, $args) : $out;
+}
+
 /** Vykreslí <select> na prepnutie jazyka (reload s ?lang=xx, ostatné parametre zachová). */
 function lang_selector(string $class = 'lang-select'): void
 {

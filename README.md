@@ -27,7 +27,7 @@ Lightweight web-based customer management for small ISPs, built on top of the **
 | ![Customer form](docs/screenshots/customer.png) | ![Dark mode](docs/screenshots/home-dark.png) |
 | Customer form (PPPoE) | Dark mode |
 
-More: [Slovak UI](docs/screenshots/home-sk.png) · [Plans](docs/screenshots/programs.png) · [Routers](docs/screenshots/routers.png) · [Networks](docs/screenshots/networks.png) · [Backup](docs/screenshots/backup.png) · [Users](docs/screenshots/users.png)
+More: [Plans](docs/screenshots/programs.png) · [Routers](docs/screenshots/routers.png) · [Networks](docs/screenshots/networks.png) · [Backup](docs/screenshots/backup.png) · [Users](docs/screenshots/users.png)
 
 ## Requirements
 
@@ -88,10 +88,11 @@ Create an API account with permissions for: `dhcp-server/lease`, `queue`, `firew
 To actually block non-payers, add a firewall rule on the router:
 
 ```
-/ip firewall filter add chain=forward src-address-list=neplatici action=drop
+/ip firewall filter add chain=forward src-address-list=unpaid action=drop
+/ip firewall filter add chain=forward src-address-list=suspended action=drop
 ```
 
-Address-list names are configurable in `config.php` (`block_lists`).
+The app maintains the address lists; the drop rules above are what actually blocks the traffic. List names default to `suspended`, `unpaid` and `terminated`, and are configurable in `config.php` (`block_lists`) or via environment variables.
 
 ## Status logic
 

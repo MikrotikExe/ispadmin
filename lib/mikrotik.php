@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/RouterosApi.php';
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/lang.php';
 
 /** kbit (ulozene ako Mbps*1024) -> MikroTik max-limit string: cele Mbps ako "15M", inak "Nk". */
 function mt_rate(int $kbit): string
@@ -85,7 +86,7 @@ function mt_connect(array $router): array
     $api->port = (int)$router['api_port'];
     $api->ssl  = (bool)$router['use_ssl'];
     if (!$api->connect($router['host'], $router['api_user'], $router['api_pass'])) {
-        return [null, $api->error ?: 'spojenie zlyhalo'];
+        return [null, $api->error ?: t('spojenie zlyhalo')];
     }
     return [$api, ''];
 }
@@ -126,14 +127,14 @@ function mt_apply_customer(int $customerId): array
 
     $c = $pdo->query('SELECT * FROM customers WHERE id = ' . (int)$customerId)->fetch();
     if (!$c) {
-        return ['ok' => false, 'msg' => 'zakaznik neexistuje'];
+        return ['ok' => false, 'msg' => t('zákazník neexistuje')];
     }
     if (empty($c['router_id'])) {
-        return ['ok' => false, 'msg' => 'zákazník nemá priradenú MikroTik sieť'];
+        return ['ok' => false, 'msg' => t('zákazník nemá priradenú MikroTik sieť')];
     }
     $router = $pdo->query('SELECT * FROM routers WHERE id = ' . (int)$c['router_id'])->fetch();
     if (!$router) {
-        return ['ok' => false, 'msg' => 'MikroTik sieť neexistuje'];
+        return ['ok' => false, 'msg' => t('MikroTik sieť neexistuje')];
     }
 
     $program = null;
@@ -167,12 +168,12 @@ function mt_apply_customer(int $customerId): array
     // RouterOS ocakava hex; pouzivatel moze zadat citatelny text aj hex (viz mt_circuit_hex).
     $circuitHex = mt_circuit_hex((string)($c['circuit_id'] ?? ''));
     if ($ip === '' && ($c['conn_type'] ?? 'dhcp') !== 'pppoe') {
-        return ['ok' => false, 'msg' => 'chýba IP'];
+        return ['ok' => false, 'msg' => t('chýba IP')];
     }
 
     [$api, $err] = mt_connect($router);
     if (!$api) {
-        return ['ok' => false, 'msg' => 'sieť ' . $router['name'] . ': ' . $err];
+        return ['ok' => false, 'msg' => t('sieť %s: %s', $router['name'], $err)];
     }
 
     $name    = $c['contract_no'] !== '' ? $c['contract_no'] : ('cust-' . $c['id']);
@@ -194,7 +195,7 @@ function mt_apply_customer(int $customerId): array
             $user = trim((string)($c['pppoe_user'] ?? ''));
             if ($user === '') {
                 $api->disconnect();
-                return ['ok' => false, 'msg' => $router['name'] . ': PPPoE bez loginu'];
+                return ['ok' => false, 'msg' => $router['name'] . ': ' . t('PPPoE bez loginu')];
             }
             $sec = $api->comm('/ppp/secret/print', ['?name' => $user]);
             $secId = $sec['items'][0]['.id'] ?? null;
@@ -222,7 +223,11 @@ function mt_apply_customer(int $customerId): array
                 }
             }
             $api->disconnect();
-            return ['ok' => true, 'msg' => $router['name'] . ': ' . implode(', ', $log)];
+            return [
+                'ok'  => true,
+                'msg' => $router['name'] . ': ' . implode(', ', array_map(fn($x) => is_array($x) ? t(...$x) : t($x), $log)),
+                'log' => $router['name'] . ': ' . implode(', ', array_map(fn($x) => is_array($x) ? t_in('en', ...$x) : t_in('en', $x), $log)),
+            ];
         }
 
         // --- DHCP lease ---
@@ -250,7 +255,7 @@ function mt_apply_customer(int $customerId): array
             if ($status === 'ukoncena') {
                 if ($leaseId) {
                     $api->comm('/ip/dhcp-server/lease/remove', ['.id' => $leaseId]);
-                    $log[] = 'lease zmazany';
+                    $log[] = 'lease zmazaný';
                 }
             } else {
                 $args = ['address' => $ip, 'comment' => $comment];
@@ -265,13 +270,13 @@ function mt_apply_customer(int $customerId): array
                 }
                 if ($leaseId) {
                     $api->comm('/ip/dhcp-server/lease/set', ['.id' => $leaseId] + $args);
-                    $log[] = $circuitHex !== '' ? 'lease aktualizovany (circuit ID)' : 'lease aktualizovany';
+                    $log[] = $circuitHex !== '' ? 'lease aktualizovaný (circuit ID)' : 'lease aktualizovaný';
                 } else {
                     $r = $api->comm('/ip/dhcp-server/lease/add', $args);
                     if ($r['status'] === 'error') {
                         throw new RuntimeException('lease: ' . $r['message']);
                     }
-                    $log[] = $circuitHex !== '' ? 'lease pridany (circuit ID)' : 'lease pridany';
+                    $log[] = $circuitHex !== '' ? 'lease pridaný (circuit ID)' : 'lease pridaný';
                 }
             }
         } else {
@@ -297,13 +302,13 @@ function mt_apply_customer(int $customerId): array
             // koniec - frontu zmaz uplne
             if ($queueId) {
                 $api->comm('/queue/simple/remove', ['.id' => $queueId]);
-                $log[] = 'queue zmazana';
+                $log[] = 'queue zmazaná';
             }
         } elseif (!$hasSpeed) {
             // bez programu aj realnej rychlosti - frontu nevieme nastavit
             if ($queueId) {
                 $api->comm('/queue/simple/remove', ['.id' => $queueId]);
-                $log[] = 'queue zmazana (bez rýchlosti)';
+                $log[] = 'queue zmazaná (bez rýchlosti)';
             }
         } else {
             // pripojeny aj docasne/neplatic: fronta normalna rychlost (blok rieši firewall address-list)
@@ -311,7 +316,7 @@ function mt_apply_customer(int $customerId): array
                 $agg = 1;
                 $ul  = $realUl;
                 $dl  = $realDl;
-                $label = $program ? $program['name'] . ' / reálne' : 'reálne';
+                $label = $program ? $program['name'] . ' / ' . t('reálne') : t('reálne');
             } else {
                 $agg = max(1, (int)$program['aggregation']);
                 $dl  = (int)$program['dl_user'];
@@ -336,14 +341,14 @@ function mt_apply_customer(int $customerId): array
             }
             if ($queueId) {
                 $api->comm('/queue/simple/set', ['.id' => $queueId] + $qargs);
-                $log[] = 'queue aktualizovaná'
-                       . ($queueByIp ? ' (prevzatá podľa IP, názov zachovaný)' : '');
+                $log[] = 'queue aktualizovaná';
+                if ($queueByIp) { $log[] = '(prevzatá podľa IP, názov zachovaný)'; }
             } else {
                 $r = $api->comm('/queue/simple/add', ['name' => $name] + $qargs);
                 if ($r['status'] === 'error') {
                     throw new RuntimeException('queue: ' . $r['message']);
                 }
-                $log[] = 'queue pridana';
+                $log[] = 'queue pridaná';
             }
         }
 
@@ -383,21 +388,25 @@ function mt_apply_customer(int $customerId): array
                     $api->comm('/ip/firewall/address-list/add', [
                         'list' => $ln, 'address' => $ip, 'comment' => $comment,
                     ]);
-                    $log[] = 'pridany do ' . $ln;
+                    $log[] = ['pridaný do %s', $ln];
                 }
             } else {
                 if ($existId) {
                     $api->comm('/ip/firewall/address-list/remove', ['.id' => $existId]);
-                    $log[] = 'odobraty z ' . $ln;
+                    $log[] = ['odobratý z %s', $ln];
                 }
             }
         }
 
         $api->disconnect();
-        return ['ok' => true, 'msg' => $router['name'] . ': ' . implode(', ', $log)];
+        return [
+            'ok'  => true,
+            'msg' => $router['name'] . ': ' . implode(', ', array_map(fn($x) => is_array($x) ? t(...$x) : t($x), $log)),
+            'log' => $router['name'] . ': ' . implode(', ', array_map(fn($x) => is_array($x) ? t_in('en', ...$x) : t_in('en', $x), $log)),
+        ];
     } catch (Throwable $e) {
         $api->disconnect();
-        return ['ok' => false, 'msg' => $router['name'] . ': ' . $e->getMessage()];
+        return ['ok' => false, 'msg' => $router['name'] . ': ' . $e->getMessage(), 'log' => $router['name'] . ': ' . $e->getMessage()];
     }
 }
 
@@ -458,5 +467,5 @@ function mt_blocklist_remove(array $router, string $list, string $address): arra
         }
     }
     $api->disconnect();
-    return ['ok' => true, 'msg' => "uvoľnené ($removed)"];
+    return ['ok' => true, 'msg' => t('uvoľnené (%d)', $removed)];
 }

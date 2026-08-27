@@ -343,3 +343,33 @@ Obnoviť databázu
 (DHCP Option 82 — voliteľné)
 napr. AVC0002508170118
 Ak je vyplnené, lease sa na MikroTiku viaže na okruh (Option 82) namiesto MAC adresy — výmena modemu potom nevyžaduje žiadny zásah. Zadaj čitateľný text aj hex, appka si prevod spraví sama.
+zákazník neexistuje
+zákazník nemá priradenú MikroTik sieť
+MikroTik sieť neexistuje
+chýba IP
+sieť %s: %s
+PPPoE bez loginu
+uvoľnené (%d)
+PPP secret zmazaný
+PPP secret zablokovaný
+PPP secret aktualizovaný
+PPP secret pridaný
+lease zmazaný
+lease aktualizovaný (circuit ID)
+lease aktualizovaný
+lease pridaný (circuit ID)
+lease pridaný
+bez MAC a circuit ID (lease neriešený)
+queue zmazaná
+queue zmazaná (bez rýchlosti)
+queue pridaná
+queue aktualizovaná
+(prevzatá podľa IP, názov zachovaný)
+ARP zmazaný
+ARP aktualizovaný
+ARP pridaný
+pridaný do %s
+odobratý z %s
+reálne
+spojenie zlyhalo
+prihlásenie odmietnuté (nesprávne meno/heslo)

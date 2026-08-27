@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $res = mt_apply_customer($id);
             }
             $pdo->prepare('DELETE FROM customers WHERE id = ?')->execute([$id]);
-            log_change($id, (string)$cust['contract_no'], (string)$user, 'zmazany');
+            log_change($id, (string)$cust['contract_no'], (string)$user, 'deleted');
             if ($hadRouter && !$res['ok']) {
                 flash('err', t('Zákazník zmazaný, ale na MikroTiku sa nepodarilo zrušiť: %s', $res['msg']));
             } else {
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($hadRouter) {
                 mt_apply_customer($id); // odstrani lease/queue (status je teraz ukoncena)
             }
-            log_change($id, (string)$cust['contract_no'], (string)$user, 'do koša');
+            log_change($id, (string)$cust['contract_no'], (string)$user, 'moved to trash');
             flash('ok', t('Zákazník presunutý do koša. Automaticky sa zmaže o 30 dní, dovtedy ho admin môže obnoviť.'));
         }
         header('Location: index.php');
@@ -135,18 +135,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // aplikuj na MikroTik (ak je priradena siet) a zapis detail do historie
-    $stavLbl = $statuses[$data['status']] ?? $data['status'];
-    $pref = ($isNew ? 'Pridaný' : 'Zmena') . ' · ' . $stavLbl;
+    // audit log sa vedie v anglictine, aby bol jednotny bez ohladu na jazyk UI
+    $statusEn = ['pripojeny' => 'connected', 'docasne' => 'suspended',
+                 'neplatic' => 'unpaid', 'ukoncena' => 'terminated'];
+    $stavLbl = $statusEn[$data['status']] ?? $data['status'];
+    $pref = ($isNew ? 'Added' : 'Changed') . ' · ' . $stavLbl;
     if (empty($data['router_id'])) {
-        log_change($id, $data['contract_no'], (string)$user, $pref . ' (bez MikroTiku)');
+        log_change($id, $data['contract_no'], (string)$user, $pref . ' (no MikroTik)');
         flash('info', t('Uložené. (Bez priradenej MikroTik siete sa na zariadenie nič neaplikovalo.)'));
     } else {
         $res = mt_apply_customer($id);
         if ($res['ok']) {
-            log_change($id, $data['contract_no'], (string)$user, $pref . ' — ' . $res['msg']);
+            log_change($id, $data['contract_no'], (string)$user, $pref . ' — ' . ($res['log'] ?? $res['msg']));
             flash('ok', t('Uložené a aplikované na MikroTik: %s', $res['msg']));
         } else {
-            log_change($id, $data['contract_no'], (string)$user, $pref . ' — MikroTik ZLYHALO: ' . $res['msg']);
+            log_change($id, $data['contract_no'], (string)$user, $pref . ' — MikroTik FAILED: ' . ($res['log'] ?? $res['msg']));
             flash('err', t('Uložené, ale aplikácia na MikroTik zlyhala: %s', $res['msg']));
         }
     }

@@ -136,7 +136,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['action'] ?? '') ==
     }
     // 3) bezpečnostná záloha aktuálnej DB pred prepísaním
     if (is_file($sqlitePath)) {
-        @copy($sqlitePath, $sqlitePath . '.pred-obnovou-' . date('Ymd-His') . '.bak');
+        @copy($sqlitePath, $sqlitePath . '.before-restore-' . date('Ymd-His') . '.bak');
     }
     // 4) prepísanie databázy
     if (!@copy($f['tmp_name'], $sqlitePath)) {

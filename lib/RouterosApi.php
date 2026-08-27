@@ -247,10 +247,10 @@ class RouterosApi
                     $this->connected = true;
                     return true;
                 }
-                $this->error = 'prihlasenie odmietnute (nespravne meno/heslo)';
+                $this->error = function_exists('t') ? t('prihlásenie odmietnuté (nesprávne meno/heslo)') : 'login refused (wrong username/password)';
             } else {
                 // !trap pri novom logine = zle udaje
-                $this->error = 'prihlasenie odmietnute (nespravne meno/heslo)';
+                $this->error = function_exists('t') ? t('prihlásenie odmietnuté (nesprávne meno/heslo)') : 'login refused (wrong username/password)';
             }
 
             fclose($this->socket);

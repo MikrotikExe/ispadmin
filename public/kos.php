@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $prev = $cust['prev_status'] ?: 'pripojeny';
         $pdo->prepare('UPDATE customers SET status = ?, prev_status = NULL, deleted_at = NULL, deleted_by = NULL WHERE id = ?')
             ->execute([$prev, $id]);
-        log_change($id, (string)$cust['contract_no'], (string)$user, 'obnovený');
+        log_change($id, (string)$cust['contract_no'], (string)$user, 'restored');
         $msg = t('Zákazník obnovený.');
         if (!empty($cust['router_id'])) {
             $res = mt_apply_customer($id); // znovu aplikuj podla obnoveneho stavu
@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $res = mt_apply_customer($id);
         }
         $pdo->prepare('DELETE FROM customers WHERE id = ?')->execute([$id]);
-        log_change($id, (string)$cust['contract_no'], (string)$user, 'zmazaný natrvalo');
+        log_change($id, (string)$cust['contract_no'], (string)$user, 'permanently deleted');
         flash('ok', t('Zákazník trvalo zmazaný.'));
     }
     header('Location: kos.php');

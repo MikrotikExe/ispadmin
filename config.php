@@ -1,20 +1,21 @@
 <?php
-// Konfiguracia aplikacie. Skopiruj a uprav podla servera.
+// Application configuration. Edit to match your server.
+// Most values can also be set via environment variables (handy with Docker).
 
-// Casova zona pre vsetky casy v aplikacii (prihlasenia, zmeny...). Default SR.
-date_default_timezone_set(getenv('ISPADMIN_TZ') ?: 'Europe/Bratislava');
+// Time zone used for all timestamps in the app (logins, changes, ...).
+date_default_timezone_set(getenv('ISPADMIN_TZ') ?: 'UTC');
 
 return [
     'app_name' => 'ISPadmin',
-    'version'  => '0.2.0',
+    'version'  => '0.3.0',
 
-    // Logo v hlavičke (dvojfarebný text). Zmeň podľa seba – napr. názov tvojej firmy.
+    // Header logo (two-tone text). Change it to your own company name.
     'brand_pre'  => 'isp',
     'brand_post' => 'admin',
-    'tagline'    => 'správa zákazníkov · MikroTik',
+    'tagline'    => 'customer management · MikroTik',
 
     'db' => [
-        // 'sqlite' (zero-config) alebo 'mysql'. Riadi sa aj env premennou DB_DRIVER.
+        // 'sqlite' (zero-config) or 'mysql'. Can also be set with the DB_DRIVER env variable.
         'driver'      => getenv('DB_DRIVER') ?: 'sqlite',
         'sqlite_path' => getenv('ISPADMIN_SQLITE') ?: (__DIR__ . '/data/ispadmin.sqlite'),
         'mysql' => [
@@ -27,32 +28,41 @@ return [
         ],
     ],
 
-    'session_name' => 'mt_ispadmin',
+    'session_name' => 'ispadmin',
 
-    // Pri stave Docasne odpojeny / Neplatic sa IP prida do tohto address-listu.
-    // Na routeri si sprav firewall pravidlo: chain=forward src/dst-address-list=neplatici action=drop
-    'block_address_list' => 'neplatici',
-    // samostatny firewall address-list pre kazdy stav (blok rieši drop pravidlo na MikroTiku)
+    // Default firewall address list used when a customer is suspended or unpaid.
+    // Create a matching rule on the router, for example:
+    //   /ip firewall filter add chain=forward src-address-list=unpaid action=drop
+    'block_address_list' => 'unpaid',
+
+    // A separate firewall address list per status. The actual blocking is done by
+    // the drop rule you create on the MikroTik — the app only maintains the lists.
     'block_lists' => [
-        'docasne'  => getenv('ISPADMIN_LIST_DOCASNE')  ?: 'docasne_odpojeni',
-        'neplatic' => getenv('ISPADMIN_LIST_NEPLATIC') ?: 'neplatici',
-        'ukoncena' => getenv('ISPADMIN_LIST_UKONCENA') ?: 'vypovede',
+        'docasne'  => getenv('ISPADMIN_LIST_SUSPENDED')  ?: 'suspended',
+        'neplatic' => getenv('ISPADMIN_LIST_UNPAID')     ?: 'unpaid',
+        'ukoncena' => getenv('ISPADMIN_LIST_TERMINATED') ?: 'terminated',
     ],
-    // rychlost fronty pre docasne odpojenych / neplaticov (statickí zákazníci: fronta sa nevypína, len zníži)
+
+    // Queue speed applied to suspended / unpaid customers. The queue is not disabled,
+    // only throttled, so static-IP customers keep a working (but useless) link.
     'block_limit' => getenv('ISPADMIN_BLOCK_LIMIT') ?: '1k/1k',
 
-    // Default prihlasovaci ucet pri prvom spusteni (zmen heslo po prihlaseni).
+    // Default account created on first run. CHANGE THE PASSWORD AFTER LOGGING IN.
     'seed_user' => 'admin',
     'seed_pass' => 'changeme',
 
-    // Geo-ochrana: povolit pristup len z vybranych krajin (cez Cloudflare hlavicku CF-IPCountry).
-    // Default VYPNUTE, aby sa nikto nezamkol. Zapni cez ISPADMIN_GEO_ENFORCE=1.
-    // Funguje len ak prevadzka ide cez Cloudflare (inak sa krajina neda zistit a pristup sa povoli).
+    // Geo-blocking: restrict access to selected countries only.
+    // DISABLED by default so nobody locks themselves out. Enable with ISPADMIN_GEO_ENFORCE=1.
+    // Works either from downloaded CIDR lists (see update_geoip.php) or, if your traffic
+    // goes through Cloudflare, from the CF-IPCountry header. If the country cannot be
+    // determined, access is allowed rather than denied.
     'geo' => [
         'enforce'   => in_array(strtolower((string)getenv('ISPADMIN_GEO_ENFORCE')), ['1', 'true', 'yes', 'on'], true),
         'countries' => array_filter(array_map('trim', explode(',', strtoupper(getenv('ISPADMIN_GEO_COUNTRIES') ?: 'SK')))),
+        // Your own fixed public IPs, always allowed. Comma separated.
         'allow_ips' => array_filter(array_map('trim', explode(',', (string)getenv('ISPADMIN_GEO_ALLOW_IPS')))),
-        // Subor so zoznamom povolenych CIDR rozsahov (stiahne update_geoip.php). Default v /data (perzistentne).
+        // File holding the allowed CIDR ranges (downloaded by update_geoip.php).
+        // Kept next to the database so it survives container rebuilds.
         'cidr_file' => getenv('ISPADMIN_GEO_CIDR_FILE') ?: (dirname(getenv('ISPADMIN_SQLITE') ?: (__DIR__ . '/data/x')) . '/geo-cidr.txt'),
     ],
 ];

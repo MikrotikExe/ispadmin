@@ -69,8 +69,12 @@ $now = date('Y-m-d H:i:s');
 
 foreach ($data['customers'] as $c) {
     $ip = $c['ip'];
+    $cid = trim((string)($c['circuit_id'] ?? ''));
     $isPppoe = ($c['conn_type'] ?? 'dhcp') === 'pppoe';
-    $key = $isPppoe ? ('ppp:' . $c['pppoe_user']) : ('ip:' . $ip);
+    // kluc pre rozlisenie: PPPoE login > circuit ID > IP
+    if ($isPppoe)      { $key = 'ppp:' . $c['pppoe_user']; }
+    elseif ($cid !== ''){ $key = 'cid:' . $cid; }
+    else               { $key = 'ip:' . $ip; }
     // duplicita v ramci tejto davky
     if (isset($seenIp[$key])) { $skipDup++; continue; }
     // uz v DB na tomto routeri
@@ -78,6 +82,9 @@ foreach ($data['customers'] as $c) {
         if ($isPppoe) {
             $dup = $pdo->prepare('SELECT id FROM customers WHERE router_id = ? AND pppoe_user = ? AND deleted_at IS NULL LIMIT 1');
             $dup->execute([$routerId, $c['pppoe_user']]);
+        } elseif ($cid !== '') {
+            $dup = $pdo->prepare('SELECT id FROM customers WHERE router_id = ? AND circuit_id = ? AND circuit_id <> "" AND deleted_at IS NULL LIMIT 1');
+            $dup->execute([$routerId, $cid]);
         } else {
             $dup = $pdo->prepare('SELECT id FROM customers WHERE router_id = ? AND ip = ? AND ip <> "" AND deleted_at IS NULL LIMIT 1');
             $dup->execute([$routerId, $ip]);
@@ -110,6 +117,7 @@ foreach ($data['customers'] as $c) {
             'pppoe_user'  => $c['pppoe_user'] ?? '',
             'pppoe_pass'  => $c['pppoe_pass'] ?? '',
             'pppoe_profile'=> $c['pppoe_profile'] ?? '',
+            'circuit_id'  => $c['circuit_id'] ?? '',
             'program_id'  => $progId,
             'real_ul_kbit'=> (int)$c['real_ul'],
             'real_dl_kbit'=> (int)$c['real_dl'],
@@ -123,7 +131,7 @@ foreach ($data['customers'] as $c) {
         $pdo->prepare("INSERT INTO customers ($cols) VALUES ($ph)")->execute($row);
         $cid = (int)$pdo->lastInsertId();
         $who = $row['firma'] !== '' ? $row['firma'] : trim($row['priezvisko'] . ' ' . $row['meno']);
-        log_change($cid, '', 'import-json', "Import z JSON ({$rcfg['name']}) — " . ($who ?: $ip));
+        log_change($cid, '', 'import-json', "Imported from JSON ({$rcfg['name']}) — " . ($who ?: $ip));
     }
     $ins++;
 }

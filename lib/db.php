@@ -399,24 +399,24 @@ function init_sqlite_schema(PDO $pdo, array $cfg): void
 
     // seed ukazkovych programov (rychlost v kbit = Mbit*1024) — uprav podla vlastnej ponuky
     // ul/dl Skupina = 0 (skupinovy strop zatial nepouzity), agregacia = 1 (uprav v UI)
-    // Pozn.: pri Optika/TV/Office web neuvadza upload -> doplneny odhad, over a uprav.
+    // Pozn.: ide o ukazkove balicky - uprav si nazvy aj rychlosti podla vlastnej ponuky.
     $programs = [
         // [name, aggregation, dl_group, ul_group, dl_user, ul_user]
         ['Home Mini', 1, 0, 0, 2048, 512],
         ['Home Lite', 1, 0, 0, 25600, 5120],
-        ['Home Štandard', 1, 0, 0, 28672, 5120],
-        ['Home Klasik', 1, 0, 0, 35840, 5120],
+        ['Home Standard', 1, 0, 0, 28672, 5120],
+        ['Home Classic', 1, 0, 0, 35840, 5120],
         ['Home Maxi', 1, 0, 0, 40960, 5120],
-        ['Home SENIOR', 1, 0, 0, 4096, 512],
+        ['Home Senior', 1, 0, 0, 4096, 512],
         ['Office Lite', 1, 0, 0, 15360, 15360],
-        ['Office Klasik', 1, 0, 0, 20480, 20480],
+        ['Office Classic', 1, 0, 0, 20480, 20480],
         ['Office Maxi', 1, 0, 0, 30720, 30720],
-        ['TV + Optika Mini', 1, 0, 0, 40960, 10240],
-        ['TV + Optika Štandard', 1, 0, 0, 51200, 15360],
-        ['TV + Optika Maxi', 1, 0, 0, 81920, 20480],
-        ['Optika Mini', 1, 0, 0, 40960, 10240],
-        ['Optika Štandard', 1, 0, 0, 71680, 20480],
-        ['Optika Maxi', 1, 0, 0, 102400, 25600],
+        ['TV + Fibre Mini', 1, 0, 0, 40960, 10240],
+        ['TV + Fibre Standard', 1, 0, 0, 51200, 15360],
+        ['TV + Fibre Maxi', 1, 0, 0, 81920, 20480],
+        ['Fibre Mini', 1, 0, 0, 40960, 10240],
+        ['Fibre Standard', 1, 0, 0, 71680, 20480],
+        ['Fibre Maxi', 1, 0, 0, 102400, 25600],
     ];
     $now = date('Y-m-d H:i:s');
     $ins = $pdo->prepare('INSERT INTO programs
