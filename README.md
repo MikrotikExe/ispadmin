@@ -50,17 +50,100 @@ Open `http://server:8000/login.php`
 
 The database is created automatically on first run in `data/ispadmin.sqlite`, seeded with example plans (edit them in the UI to match your own offer).
 
-## Running with Docker (recommended)
+## Full install on a clean Debian or Ubuntu server
+
+This is the whole thing from a freshly installed machine, in order. It takes about
+fifteen minutes and needs no PHP or web server knowledge. Steps 3 and 4 contain the two
+things that most commonly make people think the install has failed when it hasn't.
+
+### 1. Install Docker
+
+```bash
+sudo apt update && sudo apt install -y curl
+curl -fsSL https://get.docker.com | sudo sh
+```
+
+### 2. Get ISPadmin and start it
 
 ```bash
 git clone https://github.com/MikrotikExe/ispadmin.git
 cd ispadmin
-docker compose up -d --build
+sudo docker compose up -d --build
 ```
 
-- The container runs with `network_mode: host`, so it reaches your MikroTiks exactly like the host server does (including WireGuard/LAN routes).
-- Apache listens only on `127.0.0.1:8090` — expose it through an nginx reverse proxy; a sample config is in [`docker/nginx-proxy.conf`](docker/nginx-proxy.conf) (add TLS with certbot).
-- The SQLite database is stored in the `ispadmin-data` volume (persists across rebuilds).
+The container runs with `network_mode: host`, so it reaches your MikroTiks exactly like the
+host server does, including over WireGuard or other tunnels. The SQLite database lives in the
+`ispadmin-data` volume and survives rebuilds.
+
+### 3. Reach the web interface
+
+**For safety the app listens only on `127.0.0.1:8090`, not on the network.** Opening
+`http://your-server-ip:8090` in a browser will simply not respond, which looks like a failed
+install but isn't. You have two options.
+
+Either tunnel to it from your own machine — nothing to configure on the server:
+
+```bash
+ssh -L 8090:127.0.0.1:8090 youruser@your-server
+```
+
+and then browse to `http://localhost:8090`.
+
+Or, if the server sits on a trusted internal network and you want to reach it directly, edit
+`docker/ports.conf`, change `Listen 127.0.0.1:8090` to `Listen 8090`, and run
+`sudo docker compose up -d --build` again.
+
+For anything reachable from the internet, use the reverse proxy in the next step instead.
+
+### 4. Put it behind nginx with HTTPS
+
+Point a DNS record at the server first, then:
+
+```bash
+sudo apt install -y nginx certbot python3-certbot-nginx
+sudo cp docker/nginx-proxy.conf /etc/nginx/sites-available/ispadmin.conf
+sudo nano /etc/nginx/sites-available/ispadmin.conf     # set server_name to your domain
+```
+
+**Remove the stock Debian site before running certbot.** It has a catch-all `server_name`, so
+it swallows your domain and certbot installs the certificate into the wrong file — you end up
+with a valid certificate serving the nginx welcome page:
+
+```bash
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo ln -s /etc/nginx/sites-available/ispadmin.conf /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+
+sudo certbot --nginx -d ispadmin.example.com
+```
+
+Check that it worked, and that the app is what answers:
+
+```bash
+curl -I https://ispadmin.example.com/login.php     # expect 200
+```
+
+Once HTTPS is confirmed working, enable HSTS by uncommenting the
+`Strict-Transport-Security` line in your nginx config and reloading. Don't do it earlier —
+browsers will then refuse plain HTTP to this host and you can lock yourself out.
+
+### 5. First login
+
+Open your domain and log in with **`admin` / `changeme`**.
+
+**Change the password immediately** under **Account**. There's a *Generate password* button
+next to the field. The default is public knowledge, so on an internet-facing install this is
+not optional.
+
+Then, if more people need access, create accounts under **Users**. Give colleagues the
+`admin` role rather than `administrator` — `admin` already unlocks every page, it just can't
+delete or modify accounts at the same level, which stops someone accidentally locking you out.
+
+### 6. Add your first router
+
+Under **Routers**, fill in the host, API username and password, then press **Test**. If it
+goes green, everything else in the app will work. See [MikroTik setup](#mikrotik-setup) below
+for what to enable on the router itself.
 
 ## Production (MySQL)
 
@@ -223,10 +306,43 @@ A default SVG logo is included in `public/assets/logo.svg` — feel free to modi
 
 ## Security notes
 
-- **Change the default password immediately** after the first login (`admin` / `changeme`).
+- **Change the default password immediately** after the first login (`admin` / `changeme`). The default is published here, so anyone who finds your install knows it.
 - `config.php`, `lib/`, `lang/` and `data/` must not be reachable from the web — both Docker and the bundled `.htaccess` take care of this.
 - Router API credentials and customer data live only in your own database (`data/` is in `.gitignore`) — never commit them.
 - Run the app behind HTTPS (certbot + nginx proxy), ideally on an internal network / behind a VPN.
+
+## Troubleshooting
+
+**"Fatal error: attempt to write a readonly database"**
+A CLI script was run as root, so the SQLite file is now owned by root while the web app runs
+as `www-data`. Fix the ownership and always pass `-u www-data` to `docker exec`:
+
+```bash
+sudo docker exec mt-ispadmin chown -R www-data:www-data /data
+```
+
+**The browser doesn't respond on port 8090**
+That's intended — the app listens on `127.0.0.1` only. Use an SSH tunnel or the nginx reverse
+proxy, see [step 3](#3-reach-the-web-interface) above.
+
+**Certbot succeeded but the domain shows the nginx welcome page**
+Certbot installed the certificate into the stock Debian site because it matched the domain
+first. Remove `/etc/nginx/sites-enabled/default`, make sure `server_name` in your own config
+is exactly right, then re-run certbot and choose *reinstall*.
+
+**The Test button under Routers fails**
+Check in order: the API service is enabled on the router (`/ip service print`), the host and
+port are reachable from the server (`nc -vz ROUTER_IP 8728`), the API account exists with the
+right permissions, and no firewall rule on the router blocks the API port.
+
+**Timestamps are hours off**
+See [Time zone](#time-zone). The quickest fix is to set it explicitly on the Settings page.
+
+**Check what the app is actually doing**
+
+```bash
+sudo docker compose logs --tail 50
+```
 
 ## TODO / possible extensions
 
