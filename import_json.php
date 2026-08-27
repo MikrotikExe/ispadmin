@@ -1,17 +1,17 @@
 <?php
 /**
- * Import routera, sietí a zákazníkov z JSON súboru do appky.
- * Formát JSON viď example_data.json.
+ * Import a router, its networks and customers from a JSON file.
+ * For the file format see example_data.json.
  *
- * Spustenie:
- *   náhľad:  php import_json.php data.json
- *   import:  php import_json.php data.json --apply
+ * Usage:
+ *   preview:  php import_json.php data.json
+ *   import:   php import_json.php data.json --apply
  *
- * V Docker kontajneri:
+ * Inside the Docker container:
  *   docker exec -it mt-ispadmin php /var/www/html/import_json.php /var/www/html/data.json --apply
  *
- * Bezpečné: existujúcich zákazníkov (rovnaká IP / PPPoE login na routeri) preskočí,
- * dá sa spustiť opakovane. Nemení nič na MikroTiku — zapisuje len do DB appky.
+ * Safe to re-run: existing customers (same IP, PPPoE login or Circuit ID on that router)
+ * are skipped. Nothing is written to the MikroTik - only to the app's own database.
  */
 require_once __DIR__ . '/lib/db.php';
 
@@ -20,19 +20,19 @@ $APPLY = in_array('--apply', $args, true);
 $jsonPath = null;
 foreach ($args as $a) { if ($a !== '--apply') { $jsonPath = $a; break; } }
 
-if (!$jsonPath) { fwrite(STDERR, "Použitie: php import_json.php <subor.json> [--apply]\n"); exit(1); }
-if (!is_file($jsonPath)) { fwrite(STDERR, "Súbor nenájdený: $jsonPath\n"); exit(1); }
+if (!$jsonPath) { fwrite(STDERR, "Usage: php import_json.php <file.json> [--apply]\n"); exit(1); }
+if (!is_file($jsonPath)) { fwrite(STDERR, "File not found: $jsonPath\n"); exit(1); }
 $data = json_decode(file_get_contents($jsonPath), true);
-if (!$data) { fwrite(STDERR, "Nečitateľný JSON.\n"); exit(1); }
+if (!$data) { fwrite(STDERR, "Could not parse the JSON file.\n"); exit(1); }
 
 $pdo = db();
-echo ($APPLY ? "=== IMPORT (--apply) ===\n" : "=== NÁHĽAD (bez zápisu, spusti s --apply) ===\n");
+echo ($APPLY ? "=== IMPORT (--apply) ===\n" : "=== PREVIEW (nothing is written, run with --apply) ===\n");
 
 // --- router ---
 $rcfg = $data['router'];
 $routerId = (int)($pdo->query("SELECT id FROM routers WHERE name = " . $pdo->quote($rcfg['name']))->fetchColumn() ?: 0);
 if (!$routerId) {
-    echo "Router '{$rcfg['name']}' — VYTVORÍ SA (host {$rcfg['host']}, dhcp {$rcfg['dhcp_server']}). API user/heslo doplníš v UI.\n";
+    echo "Router '{$rcfg['name']}' - WILL BE CREATED (host {$rcfg['host']}, dhcp {$rcfg['dhcp_server']}). Add the API username/password in the UI.\n";
     if ($APPLY) {
         $pdo->prepare('INSERT INTO routers (name,host,api_port,use_ssl,api_user,api_pass,dhcp_server,parent_queue,siet,manage_arp,arp_interface,active)
                        VALUES (?,?,8728,0,?,?,?,?,?,?,?,1)')
@@ -40,7 +40,7 @@ if (!$routerId) {
         $routerId = (int)$pdo->lastInsertId();
     }
 } else {
-    echo "Router '{$rcfg['name']}' — už existuje (#$routerId).\n";
+    echo "Router '{$rcfg['name']}' - already exists (#$routerId).\n";
 }
 
 // --- siete ---
@@ -56,7 +56,7 @@ foreach ($data['networks'] as $n) {
         $netMap[$n['name']] = (int)$pdo->lastInsertId();
     }
 }
-echo "Siete: " . count($data['networks']) . " (nových: $netNew)\n";
+echo "Networks: " . count($data['networks']) . " (new: $netNew)\n";
 
 // --- programy: nazov -> id ---
 $progMap = [];
@@ -69,11 +69,11 @@ $now = date('Y-m-d H:i:s');
 
 foreach ($data['customers'] as $c) {
     $ip = $c['ip'];
-    $cid = trim((string)($c['circuit_id'] ?? ''));
+    $circuitId = trim((string)($c['circuit_id'] ?? ''));
     $isPppoe = ($c['conn_type'] ?? 'dhcp') === 'pppoe';
     // kluc pre rozlisenie: PPPoE login > circuit ID > IP
     if ($isPppoe)      { $key = 'ppp:' . $c['pppoe_user']; }
-    elseif ($cid !== ''){ $key = 'cid:' . $cid; }
+    elseif ($circuitId !== '') { $key = 'cid:' . $circuitId; }
     else               { $key = 'ip:' . $ip; }
     // duplicita v ramci tejto davky
     if (isset($seenIp[$key])) { $skipDup++; continue; }
@@ -82,9 +82,9 @@ foreach ($data['customers'] as $c) {
         if ($isPppoe) {
             $dup = $pdo->prepare('SELECT id FROM customers WHERE router_id = ? AND pppoe_user = ? AND deleted_at IS NULL LIMIT 1');
             $dup->execute([$routerId, $c['pppoe_user']]);
-        } elseif ($cid !== '') {
+        } elseif ($circuitId !== '') {
             $dup = $pdo->prepare('SELECT id FROM customers WHERE router_id = ? AND circuit_id = ? AND circuit_id <> "" AND deleted_at IS NULL LIMIT 1');
-            $dup->execute([$routerId, $cid]);
+            $dup->execute([$routerId, $circuitId]);
         } else {
             $dup = $pdo->prepare('SELECT id FROM customers WHERE router_id = ? AND ip = ? AND ip <> "" AND deleted_at IS NULL LIMIT 1');
             $dup->execute([$routerId, $ip]);
@@ -129,16 +129,16 @@ foreach ($data['customers'] as $c) {
         $cols = implode(',', array_keys($row));
         $ph = implode(',', array_map(fn($k) => ":$k", array_keys($row)));
         $pdo->prepare("INSERT INTO customers ($cols) VALUES ($ph)")->execute($row);
-        $cid = (int)$pdo->lastInsertId();
+        $newId = (int)$pdo->lastInsertId();
         $who = $row['firma'] !== '' ? $row['firma'] : trim($row['priezvisko'] . ' ' . $row['meno']);
-        log_change($cid, '', 'import-json', "Imported from JSON ({$rcfg['name']}) — " . ($who ?: $ip));
+        log_change($newId, '', 'import-json', "Imported from JSON ({$rcfg['name']}) — " . ($who ?: $ip));
     }
     $ins++;
 }
 
-echo "\nZákazníci:\n";
-echo "  na import:            $ins\n";
-echo "  preskočené (už v DB): $skipDb\n";
-echo "  preskočené (dupl. IP v dávke): $skipDup\n";
-echo "  podľa stavu: " . json_encode($byStatus, JSON_UNESCAPED_UNICODE) . "\n";
-echo $APPLY ? "\nHOTOVO. Skontroluj Domov + Siete.\n" : "\nNič sa nezapísalo. Spusti s --apply.\n";
+echo "\nCustomers:\n";
+echo "  to import:                $ins\n";
+echo "  skipped (already in DB):  $skipDb\n";
+echo "  skipped (duplicate in file): $skipDup\n";
+echo "  by status: " . json_encode($byStatus, JSON_UNESCAPED_UNICODE) . "\n";
+echo $APPLY ? "\nDONE. Check the Home and Networks pages.\n" : "\nNothing was written. Re-run with --apply.\n";
