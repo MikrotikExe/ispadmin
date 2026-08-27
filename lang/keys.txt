@@ -373,3 +373,25 @@ odobratý z %s
 reálne
 spojenie zlyhalo
 prihlásenie odmietnuté (nesprávne meno/heslo)
+Nastavenia
+Časová zóna
+Aktuálne používaná
+Zdroj nastavenia
+Miestny čas teraz
+premenná prostredia ISPADMIN_TZ
+ručné nastavenie nižšie
+automaticky zo servera
+predvolená (UTC)
+Ručné nastavenie
+— automaticky zo servera —
+Zónu určuje premenná prostredia ISPADMIN_TZ (%s). Kým je nastavená, voľba nižšie sa neuplatní — zmeň ju v docker-compose.yml alebo v prostredí servera.
+Zónu určuje premenná prostredia, ručná zmena sa neuplatní.
+Časová zóna sa opäť preberá zo servera.
+Časová zóna uložená: %s
+Neplatná časová zóna.
+Ovplyvňuje všetky časy v aplikácii — históriu zmien, prihlásenia aj názvy záloh. Ukladá sa do databázy, nie do konfiguračného súboru, takže prežije aktualizáciu.
+O aplikácii
+Verzia
+Databáza
+Zóna servera
+nezistená

@@ -18,6 +18,7 @@ function layout_header(string $active = ''): void
         $nav['kos.php'] = t('Kôš');
         $nav['pouzivatelia.php'] = t('Používatelia');
         $nav['zaloha.php'] = t('Záloha');
+        $nav['settings.php'] = t('Nastavenia');
     }
     ?><!DOCTYPE html>
 <html lang="<?= h(lang_current()) ?>">

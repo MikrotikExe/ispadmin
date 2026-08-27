@@ -16,6 +16,7 @@ Lightweight web-based customer management for small ISPs, built on top of the **
 - Optional geo-blocking of the login (allow selected countries only, via Cloudflare header or offline CIDR lists)
 - **10 languages** — language picker on the login screen and in the header (Slovak, Czech, English, German, Polish, Hungarian, Romanian, Ukrainian, Latvian, Russian)
 - Light / dark theme, responsive UI
+- Time zone detected from the server automatically, overridable from the Settings page
 - **DHCP Option 82 support** — bind a customer's lease to the physical circuit (Agent Circuit ID) instead of the MAC address, so swapping a modem needs no reconfiguration
 
 ## Screenshots
@@ -27,7 +28,7 @@ Lightweight web-based customer management for small ISPs, built on top of the **
 | ![Customer form](docs/screenshots/customer.png) | ![Dark mode](docs/screenshots/home-dark.png) |
 | Customer form (PPPoE) | Dark mode |
 
-More: [Plans](docs/screenshots/programs.png) · [Routers](docs/screenshots/routers.png) · [Networks](docs/screenshots/networks.png) · [Backup](docs/screenshots/backup.png) · [Users](docs/screenshots/users.png)
+More: [Settings](docs/screenshots/settings.png) · [Plans](docs/screenshots/programs.png) · [Routers](docs/screenshots/routers.png) · [Networks](docs/screenshots/networks.png) · [Backup](docs/screenshots/backup.png) · [Users](docs/screenshots/users.png)
 
 ## Requirements
 
@@ -133,6 +134,17 @@ A string is only treated as hex if it decodes to readable text — so a purely n
 To find the value on a running system, look at an active lease in RouterOS (`IP → DHCP Server → Leases`, the **Agent Circuit Id** field), or take it from the carrier's service order.
 
 Notes and open questions live in [issue #1](https://github.com/MikrotikExe/ispadmin/issues/1).
+
+## Time zone
+
+Every timestamp in the app — change history, logins, backup file names — uses a single time zone, resolved in this order:
+
+1. the `ISPADMIN_TZ` environment variable, if set (useful for Docker)
+2. a manual choice saved on the **Settings** page
+3. the server's own time zone, read from `/etc/timezone` or `/etc/localtime`
+4. UTC, as a last resort
+
+In practice step 3 means timestamps are correct straight after installation without configuring anything. If the server's zone is wrong or the app runs somewhere else than your customers, pick the right one under Settings — it is stored in the database, not in `config.php`, so it survives updates. When `ISPADMIN_TZ` is set it wins over everything and the Settings field is shown read-only, so it is always obvious where the value comes from.
 
 ## Plans and aggregation
 

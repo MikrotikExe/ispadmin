@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/tz.php';
 /** Odstrani diakritiku a zmensi pismena - pre vyhladavanie bez diakritiky. */
 function noacc(string $s): string
 {
@@ -65,6 +66,9 @@ function db(): PDO
     ensure_arp($pdo, $d['driver']);
     ensure_pppoe($pdo, $d['driver']);
     ensure_last_login($pdo, $d['driver']);
+    ensure_settings($pdo, $d['driver']);
+    // casova zona: env > nastavenie v DB > zona servera > UTC
+    tz_apply();
     return $pdo;
 }
 
@@ -432,4 +436,58 @@ function log_change(int $customerId, string $contractNo, string $who, string $ac
     $stmt = db()->prepare('INSERT INTO change_log (customer_id, contract_no, who, action, created_at)
         VALUES (?,?,?,?,?)');
     $stmt->execute([$customerId, $contractNo, $who, $action, date('Y-m-d H:i:s')]);
+}
+
+/** Tabulka pre nastavenia aplikacie (kluc/hodnota). */
+function ensure_settings(PDO $pdo, string $driver): void
+{
+    try {
+        if ($driver === 'mysql') {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS settings (
+                `key` VARCHAR(64) PRIMARY KEY,
+                `value` TEXT NULL,
+                updated_at DATETIME NULL,
+                updated_by VARCHAR(64) NULL
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        } else {
+            $pdo->exec('CREATE TABLE IF NOT EXISTS settings (
+                `key` TEXT PRIMARY KEY,
+                `value` TEXT,
+                updated_at TEXT,
+                updated_by TEXT
+            )');
+        }
+    } catch (Throwable $e) { /* ticho */ }
+}
+
+/** Precita nastavenie z DB. Vrati $default ak nie je nastavene. */
+function setting_get(string $key, ?string $default = null): ?string
+{
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        try {
+            foreach (db()->query('SELECT `key`, `value` FROM settings') as $r) {
+                $cache[$r['key']] = $r['value'];
+            }
+        } catch (Throwable $e) { /* tabulka este nemusi existovat */ }
+    }
+    $v = $cache[$key] ?? null;
+    return ($v === null || $v === '') ? $default : $v;
+}
+
+/** Ulozi nastavenie do DB. */
+function setting_set(string $key, string $value, string $who = ''): void
+{
+    $pdo = db();
+    $now = date('Y-m-d H:i:s');
+    $exists = $pdo->prepare('SELECT 1 FROM settings WHERE `key` = ?');
+    $exists->execute([$key]);
+    if ($exists->fetchColumn()) {
+        $pdo->prepare('UPDATE settings SET `value` = ?, updated_at = ?, updated_by = ? WHERE `key` = ?')
+            ->execute([$value, $now, $who, $key]);
+    } else {
+        $pdo->prepare('INSERT INTO settings (`key`, `value`, updated_at, updated_by) VALUES (?,?,?,?)')
+            ->execute([$key, $value, $now, $who]);
+    }
 }

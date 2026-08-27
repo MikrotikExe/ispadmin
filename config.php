@@ -2,8 +2,9 @@
 // Application configuration. Edit to match your server.
 // Most values can also be set via environment variables (handy with Docker).
 
-// Time zone used for all timestamps in the app (logins, changes, ...).
-date_default_timezone_set(getenv('ISPADMIN_TZ') ?: 'UTC');
+// Time zone: detected from the server automatically, overridable in the UI
+// (Settings page) or with the ISPADMIN_TZ environment variable, which wins over both.
+// See lib/tz.php. Nothing to configure here.
 
 return [
     'app_name' => 'ISPadmin',
