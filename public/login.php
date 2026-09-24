@@ -26,6 +26,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= h(t('Prihlásenie')) ?></title>
 <script>(function(){try{var t=localStorage.getItem('theme');if(!t){t=window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+<link rel="icon" href="assets/favicon.svg?v=<?= (int)@filemtime(__DIR__ . '/assets/favicon.svg') ?>" type="image/svg+xml">
+<link rel="alternate icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="stylesheet" href="assets/style.css?v=<?= (int)@filemtime(__DIR__ . '/assets/style.css') ?>">
 </head>
 <body>

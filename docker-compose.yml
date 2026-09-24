@@ -91,6 +91,7 @@ services:
       # Adresa, na ktorej FreeRADIUS pocuva (1812/1813). NIKDY nie verejna - len manazmentova sie.
       - RADIUS_BIND=${RADIUS_BIND:-127.0.0.1}
       - RADIUS_LOCAL_SECRET=${RADIUS_LOCAL_SECRET:-}
+      - RADIUS_REQUIRE_MA=${RADIUS_REQUIRE_MA:-no}
       - TZ=${TZ:-UTC}
     depends_on:
       db:

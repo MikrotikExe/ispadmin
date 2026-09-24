@@ -107,8 +107,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // predosly PPPoE login - pri premenovani treba zmazat stare RADIUS riadky a odpojit relaciu
     $oldPppoeUser = null;
+    $oldRow = null;
     if ($id) {
-        $oldPppoeUser = (string)$pdo->query('SELECT pppoe_user FROM customers WHERE id = ' . $id)->fetchColumn();
+        $oldRow = $pdo->query('SELECT * FROM customers WHERE id = ' . $id)->fetch() ?: null;
+        $oldPppoeUser = $oldRow ? (string)$oldRow['pppoe_user'] : null;
     }
 
     // PPPoE cez RADIUS: login je globalny (nie per router), musi byt vyplneny a unikatny
@@ -165,6 +167,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stavLbl = $statusEn[$data['status']] ?? $data['status'];
     $pref = ($isNew ? 'Added' : 'Changed') . ' · ' . $stavLbl;
     if (empty($data['router_id'])) {
+        // zakaznik bez routera: jeho RADIUS riadky by inak dalej pustali login na lubovolnom RADIUS routeri
+        if ($oldRow && radius_available()) {
+            radius_forget_customer($oldRow);
+        }
         log_change($id, $data['contract_no'], (string)$user, $pref . ' (no MikroTik)');
         flash('info', t('Uložené. (Bez priradenej MikroTik siete sa na zariadenie nič neaplikovalo.)'));
     } else {

@@ -45,9 +45,19 @@ server ispadmin {
 		attr_filter.accounting_response
 	}
 
+	# radpostauth: the stock query would store the PAP / CHAP password (including wrong
+	# attempts) in cleartext - remove it from the request before logging the attempt.
 	post-auth {
+		update request {
+			&User-Password !* ANY
+			&CHAP-Password !* ANY
+		}
 		sql
 		Post-Auth-Type REJECT {
+			update request {
+				&User-Password !* ANY
+				&CHAP-Password !* ANY
+			}
 			sql
 			attr_filter.access_reject
 		}

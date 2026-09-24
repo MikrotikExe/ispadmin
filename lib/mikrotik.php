@@ -495,6 +495,29 @@ function mt_apply_customer_radius(array $c, array $router, ?array $program, ?str
 }
 
 /**
+ * Znovu aplikuje vsetkych PPPoE zakaznikov routera (po zapnuti/vypnuti RADIUS na routeri).
+ * Vrati ['total' => n, 'failed' => [sprava, ...]].
+ */
+function mt_reapply_router_pppoe(int $routerId, string $who): array
+{
+    @set_time_limit(0);
+    $st = db()->prepare("SELECT id, contract_no, pppoe_user FROM customers
+        WHERE router_id = ? AND conn_type = 'pppoe' AND deleted_at IS NULL ORDER BY id");
+    $st->execute([$routerId]);
+    $rows = $st->fetchAll();
+    $failed = [];
+    foreach ($rows as $c) {
+        $res = mt_apply_customer((int)$c['id']);
+        log_change((int)$c['id'], (string)$c['contract_no'], $who,
+            'Re-applied (router RADIUS mode changed) — ' . ($res['ok'] ? '' : 'MikroTik FAILED: ') . ($res['log'] ?? $res['msg']));
+        if (!$res['ok']) {
+            $failed[] = (string)$c['pppoe_user'] . ': ' . $res['msg'];
+        }
+    }
+    return ['total' => count($rows), 'failed' => $failed];
+}
+
+/**
  * Precita viacero firewall address-listov z routera v jednom spojeni. Read-only.
  * $lists = pole nazvov listov.
  * Vrati ['ok'=>bool,'msg'=>?, 'lists'=>[ name => ['items'=>[['id','address','comment']], 'rule'=>bool] ]]

@@ -55,8 +55,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'poschodie'   => trim($_POST['poschodie'] ?? ''),
         'active'      => isset($_POST['active']) ? 1 : 0,
     ];
-    // PPPoE cez RADIUS (polia sa posielaju len ked je RADIUS v appke zapnuty)
-    if (radius_available()) {
+    // stav RADIUS pred ulozenim - pri zmene treba znovu aplikovat PPPoE zakaznikov routera
+    $wasRadius = $id ? (int)$pdo->query('SELECT pppoe_radius FROM routers WHERE id = ' . $id)->fetchColumn() : 0;
+    // PPPoE cez RADIUS (polia sa posielaju len ked je RADIUS v appke zapnuty; menit ich smie len admin -
+    // secret umoznuje podvrhnut CoA/odpojenie, rola user ho nevidi ani nemeni)
+    if (radius_available() && is_admin()) {
         $d['pppoe_radius']  = ((int)($_POST['pppoe_radius'] ?? 0) === 1) ? 1 : 0;
         $d['radius_secret'] = trim((string)($_POST['radius_secret'] ?? ''));
         $d['radius_nas_ip'] = trim((string)($_POST['radius_nas_ip'] ?? ''));
@@ -64,8 +67,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $d['radius_secret'] = radius_random(24);   // silny, unikatny secret pre kazdy NAS
         }
         $back = 'Location: routers.php' . ($id ? '?edit=' . $id : '');
-        if ($d['radius_secret'] !== '' && (strlen($d['radius_secret']) < 16 || !preg_match('/^[A-Za-z0-9._@#+=-]+$/', $d['radius_secret']))) {
-            flash('err', t('RADIUS secret musí mať aspoň 16 znakov (písmená, číslice a . _ @ # + = -).'));
+        // 16..60 znakov (nas.secret je VARCHAR(60))
+        if ($d['radius_secret'] !== '' && (strlen($d['radius_secret']) < 16 || strlen($d['radius_secret']) > 60 || !preg_match('/^[A-Za-z0-9._@#+=-]+$/', $d['radius_secret']))) {
+            flash('err', t('RADIUS secret musí mať 16 až 60 znakov (písmená, číslice a . _ @ # + = -).'));
             header($back);
             exit;
         }
@@ -109,9 +113,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // FreeRADIUS klient (tabulka nas) - pridany/aktualizovany/odstraneny podla nastavenia
     $savedRouter = $pdo->query('SELECT * FROM routers WHERE id = ' . $id)->fetch();
     if ($savedRouter) {
-        radius_nas_sync($id, $savedRouter);
+        try {
+            radius_nas_sync($id, $savedRouter);
+        } catch (Throwable $ex) {
+            flash('err', t('RADIUS: tabuľku nas sa nepodarilo aktualizovať: %s', $ex->getMessage()));
+        }
     }
     flash('ok', t('Router uložený.'));
+    // RADIUS zapnuty/vypnuty: PPPoE zakaznikov routera treba prepnut (RADIUS riadky <-> /ppp secret),
+    // inak by sa po vypnuti nemali ako prihlasit a po zapnuti by ostali na lokalnych secretoch
+    if ($savedRouter && radius_available() && $wasRadius !== (int)($savedRouter['pppoe_radius'] ?? 0)) {
+        $re = mt_reapply_router_pppoe($id, (string)current_user());
+        if ($re['total'] > 0) {
+            flash($re['failed'] ? 'err' : 'ok', t('PPPoE zákazníci routera znovu aplikovaní: %d z %d.', $re['total'] - count($re['failed']), $re['total']));
+            foreach (array_slice($re['failed'], 0, 10) as $msg) {
+                flash('err', $msg);
+            }
+        }
+    }
     header('Location: routers.php');
     exit;
 }
@@ -171,7 +190,7 @@ render_flash();
         <input name="arp_interface" value="<?= h($e['arp_interface']) ?>" placeholder="ether1 - Switch">
       </div>
     </div>
-    <?php if (radius_available()): ?>
+    <?php if (radius_available() && is_admin()): ?>
     <div class="grid g3">
       <div class="cell">
         <label><?= t('PPPoE cez RADIUS') ?></label>
@@ -255,13 +274,12 @@ render_flash();
   </tr>
   <?php endforeach; ?>
 </table>
-<?php if ($e['id'] && radius_router_on($e)): ?>
+<?php if ($e['id'] && radius_router_on($e) && is_admin()): ?>
 <?php
   $rcfg = radius_cfg();
   $radAddr = $rcfg['address'] !== '' ? $rcfg['address'] : '<ISPADMIN_RADIUS_IP>';
   $interim = (int)$rcfg['interim_interval'] > 0 ? (int)$rcfg['interim_interval'] : 300;
-  $snippet = "/radius add service=ppp address={$radAddr} secret=\"{$e['radius_secret']}\" authentication-port=1812 accounting-port=1813"
-    . (trim((string)$e['radius_nas_ip']) !== '' ? ' src-address=' . trim((string)$e['radius_nas_ip']) : '') . "\n"
+  $snippet = "/radius add service=ppp address={$radAddr} secret=\"{$e['radius_secret']}\" authentication-port=1812 accounting-port=1813\n"
     . "/radius incoming set accept=yes port=3799\n"
     . "/ppp aaa set use-radius=yes accounting=yes interim-update={$interim}s\n"
     . "/ppp profile add name=ispadmin-pppoe local-address=<PPP_GATEWAY_IP>\n"

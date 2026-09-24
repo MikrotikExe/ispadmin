@@ -432,7 +432,6 @@ return [
     'RADIUS nie je pre tento router zapnutý.' => 'RADIUS nu este activat pentru acest router.',
     'RADIUS secret' => 'RADIUS secret',
     'RADIUS secret alebo NAS IP už používa router „%s“.' => 'Secretul RADIUS sau NAS IP este deja folosit de routerul „%s”.',
-    'RADIUS secret musí mať aspoň 16 znakov (písmená, číslice a . _ @ # + = -).' => 'Secretul RADIUS trebuie să aibă cel puțin 16 caractere (litere, cifre și . _ @ # + = -).',
     'RADIUS test' => 'Test RADIUS',
     'RADIUS test %s: %s' => 'Test RADIUS %s: %s',
     'RADIUS_LOCAL_SECRET nie je nastavený — test servera preskočený.' => 'RADIUS_LOCAL_SECRET nu este setat — testul serverului a fost omis.',
@@ -467,4 +466,7 @@ return [
     '%d × OK' => '%d × OK',
     'upozornenia: %d' => 'avertismente: %d',
     'chyby: %d' => 'erori: %d',
+    'RADIUS secret musí mať 16 až 60 znakov (písmená, číslice a . _ @ # + = -).' => 'Secretul RADIUS trebuie să aibă între 16 și 60 de caractere (litere, cifre și . _ @ # + = -).',
+    'RADIUS: tabuľku nas sa nepodarilo aktualizovať: %s' => 'RADIUS: tabela nas nu a putut fi actualizată: %s',
+    'PPPoE zákazníci routera znovu aplikovaní: %d z %d.' => 'Clienții PPPoE ai routerului reaplicați: %d din %d.',
 ];

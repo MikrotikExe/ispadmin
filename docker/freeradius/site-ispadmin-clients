@@ -7,7 +7,7 @@ server ispadmin_clients {
 		if ("%{sql:SELECT nasname FROM nas WHERE nasname = '%{Packet-Src-IP-Address}' LIMIT 1}") {
 			update control {
 				&FreeRADIUS-Client-IP-Address = "%{Packet-Src-IP-Address}"
-				&FreeRADIUS-Client-Require-MA = no
+				&FreeRADIUS-Client-Require-MA = $ENV{RADIUS_REQUIRE_MA}
 				&FreeRADIUS-Client-Secret = "%{sql:SELECT secret FROM nas WHERE nasname = '%{Packet-Src-IP-Address}' LIMIT 1}"
 				&FreeRADIUS-Client-Shortname = "%{sql:SELECT shortname FROM nas WHERE nasname = '%{Packet-Src-IP-Address}' LIMIT 1}"
 				&FreeRADIUS-Client-NAS-Type = "other"

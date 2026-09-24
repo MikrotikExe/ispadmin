@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- ISPadmin favicon: router + signal (from assets/logo.svg) -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f6cb0"/>
+      <stop offset="1" stop-color="#1f3a63"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#g)"/>
+  <rect x="10" y="36" width="44" height="16" rx="4" fill="#fff"/>
+  <circle cx="19" cy="44" r="3" fill="#2f6cb0"/>
+  <circle cx="28" cy="44" r="3" fill="#2f6cb0" opacity=".6"/>
+  <rect x="41" y="40.5" width="7" height="7" rx="1.5" fill="#1f3a63"/>
+  <path d="M26 28 a 12 12 0 0 1 12 -7" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/>
+  <path d="M24 17 a 22 22 0 0 1 22 -9" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" opacity=".6"/>
+</svg>

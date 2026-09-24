@@ -3,7 +3,7 @@ FROM ubuntu:24.04
 
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      freeradius freeradius-mysql freeradius-utils \
+      freeradius freeradius-mysql freeradius-utils tzdata \
  && rm -rf /var/lib/apt/lists/*
 
 ENV RADDB=/etc/freeradius/3.0

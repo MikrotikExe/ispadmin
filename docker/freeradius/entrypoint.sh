@@ -6,7 +6,9 @@ set -e
 : "${DB_NAME:=ispadmin}"
 : "${DB_USER:=ispadmin}"
 : "${RADIUS_BIND:=127.0.0.1}"
-export DB_HOST DB_PORT DB_NAME DB_USER RADIUS_BIND
+# BlastRADIUS: require Message-Authenticator from routers (RouterOS 7.15+ sends it). Default off for older RouterOS.
+case "${RADIUS_REQUIRE_MA:-no}" in yes|1|true) RADIUS_REQUIRE_MA=yes ;; *) RADIUS_REQUIRE_MA=no ;; esac
+export DB_HOST DB_PORT DB_NAME DB_USER RADIUS_BIND RADIUS_REQUIRE_MA
 
 if [ -z "$DB_PASS" ] || [ -z "$RADIUS_LOCAL_SECRET" ]; then
     echo "freeradius: DB_PASS and RADIUS_LOCAL_SECRET must be set (see .env.example)" >&2

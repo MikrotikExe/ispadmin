@@ -432,7 +432,6 @@ return [
     'RADIUS nie je pre tento router zapnutý.' => 'RADIUS není pro tento router zapnutý.',
     'RADIUS secret' => 'RADIUS secret',
     'RADIUS secret alebo NAS IP už používa router „%s“.' => 'RADIUS secret nebo NAS IP už používá router „%s“.',
-    'RADIUS secret musí mať aspoň 16 znakov (písmená, číslice a . _ @ # + = -).' => 'RADIUS secret musí mít aspoň 16 znaků (písmena, číslice a . _ @ # + = -).',
     'RADIUS test' => 'RADIUS test',
     'RADIUS test %s: %s' => 'RADIUS test %s: %s',
     'RADIUS_LOCAL_SECRET nie je nastavený — test servera preskočený.' => 'RADIUS_LOCAL_SECRET není nastavený — test serveru přeskočen.',
@@ -467,4 +466,7 @@ return [
     '%d × OK' => '%d × OK',
     'upozornenia: %d' => 'upozornění: %d',
     'chyby: %d' => 'chyby: %d',
+    'RADIUS secret musí mať 16 až 60 znakov (písmená, číslice a . _ @ # + = -).' => 'RADIUS secret musí mít 16 až 60 znaků (písmena, číslice a . _ @ # + = -).',
+    'RADIUS: tabuľku nas sa nepodarilo aktualizovať: %s' => 'RADIUS: tabulku nas se nepodařilo aktualizovat: %s',
+    'PPPoE zákazníci routera znovu aplikovaní: %d z %d.' => 'PPPoE zákazníci routeru znovu aplikováni: %d z %d.',
 ];

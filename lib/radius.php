@@ -248,8 +248,12 @@ function radius_attr(array $rows, string $attr): ?string
 function radius_open_sessions(string $username): array
 {
     if ($username === '') return [];
+    // relacie bez priebezneho hlasenia dlhsie ako 3x interval su mrtve (NAS spadol) -
+    // CoA/PoD by na ne len cakalo na timeout; uprace ich close_stale_sessions.php
+    $interim = (int)radius_cfg()['interim_interval'];
+    $stale = $interim > 0 ? ' AND COALESCE(acctupdatetime, acctstarttime) > NOW() - INTERVAL ' . (3 * $interim) . ' SECOND' : '';
     $st = db()->prepare('SELECT acctsessionid, nasipaddress, framedipaddress, acctstarttime
-        FROM radacct WHERE username = ? AND acctstoptime IS NULL ORDER BY acctstarttime DESC LIMIT 5');
+        FROM radacct WHERE username = ? AND acctstoptime IS NULL' . $stale . ' ORDER BY acctstarttime DESC LIMIT 5');
     $st->execute([$username]);
     return $st->fetchAll();
 }
@@ -284,6 +288,7 @@ function radius_sessions_export(string $from, string $to): Generator
         -- explicitna kolacia: FreeRADIUS tabulky a tabulky appky mozu mat rozne predvolene kolacie
         -- (napr. MariaDB 11.x utf8mb4_uca1400_ai_ci vs utf8mb4_unicode_ci) -> inak 'Illegal mix of collations'
         LEFT JOIN customers c ON c.pppoe_user COLLATE utf8mb4_unicode_ci = a.username COLLATE utf8mb4_unicode_ci AND c.conn_type = 'pppoe' AND c.deleted_at IS NULL
+            AND c.router_id IN (SELECT id FROM routers WHERE pppoe_radius = 1)
         WHERE a.acctstarttime < ? AND (a.acctstoptime IS NULL OR a.acctstoptime >= ?)
         ORDER BY a.acctstarttime, a.radacctid");
     $st->execute([$to, $from]);
@@ -324,16 +329,22 @@ function radius_nas_sync(int $routerId, array $router): void
     if (!radius_available()) return;
     $pdo = db();
     $tag = 'ispadmin:router:' . $routerId;
-    $pdo->prepare('DELETE FROM nas WHERE description = ?')->execute([$tag]);
-    if ((int)($router['pppoe_radius'] ?? 0) !== 1 || trim((string)($router['radius_secret'] ?? '')) === '') {
-        return;
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('DELETE FROM nas WHERE description = ?')->execute([$tag]);
+        if ((int)($router['pppoe_radius'] ?? 0) === 1 && trim((string)($router['radius_secret'] ?? '')) !== '') {
+            $nasIp = radius_nas_ip($router);
+            // poistka: ina (rucne pridana) polozka s rovnakou IP by FreeRADIUS mylila
+            $pdo->prepare('DELETE FROM nas WHERE nasname = ?')->execute([$nasIp]);
+            $pdo->prepare('INSERT INTO nas (nasname, shortname, type, ports, secret, description) VALUES (?,?,?,?,?,?)')
+                ->execute([$nasIp, substr(mt_ascii((string)$router['name']), 0, 32), 'other', (int)radius_cfg()['coa']['port'],
+                           (string)$router['radius_secret'], $tag]);
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
     }
-    $nasIp = radius_nas_ip($router);
-    // poistka: ina (rucne pridana) polozka s rovnakou IP by FreeRADIUS mylila
-    $pdo->prepare('DELETE FROM nas WHERE nasname = ?')->execute([$nasIp]);
-    $pdo->prepare('INSERT INTO nas (nasname, shortname, type, ports, secret, description) VALUES (?,?,?,?,?,?)')
-        ->execute([$nasIp, substr(mt_ascii((string)$router['name']), 0, 32), 'other', (int)radius_cfg()['coa']['port'],
-                   (string)$router['radius_secret'], $tag]);
 }
 
 /** Odstrani nas riadok routera (pri zmazani routera). */
@@ -437,6 +448,7 @@ function radius_send(string $host, int $port, string $secret, int $code, array $
 
     $resp = '';
     $from = '';
+    $badAuth = false;
     for ($try = 0; $try < 2 && $resp === ''; $try++) {
         @stream_socket_sendto($sock, $packet, 0, $dst . ':' . $port);
         $deadline = microtime(true) + $timeout;
@@ -447,28 +459,32 @@ function radius_send(string $host, int $port, string $secret, int $code, array $
             }
             $peer = '';
             $d = @stream_socket_recvfrom($sock, 4096, 0, $peer);
-            if (is_string($d) && strlen($d) >= 20 && ord($d[1]) === $id) {
-                $resp = $d;
-                $from = $peer;
-                break;
+            if (!is_string($d) || strlen($d) < 20 || ord($d[1]) !== $id) {
+                continue;            // cudzi/oneskoreny paket - cakaj dalej
             }
-            // cudzi/oneskoreny paket - ignoruj a cakaj dalej
+            $len = unpack('n', substr($d, 2, 2))[1];
+            if ($len < 20 || $len > strlen($d)) {
+                continue;
+            }
+            $d = substr($d, 0, $len);
+            // pravost odpovede (Response Authenticator so secretom). Podvrhnuty alebo zly paket
+            // nesmie ukoncit cakanie - odpoved moze prist z inej adresy (NAT), preto ju overujeme tu.
+            $check = md5(substr($d, 0, 4) . $reqAuth . substr($d, 20) . $secret, true);
+            if (!hash_equals($check, substr($d, 4, 16))) {
+                $badAuth = true;
+                continue;
+            }
+            $resp = $d;
+            $from = $peer;
+            break;
         }
     }
     fclose($sock);
     if ($resp === '') {
-        return ['ok' => false, 'code' => null, 'attrs' => [], 'error' => 'timeout'];
+        return ['ok' => false, 'code' => null, 'attrs' => [],
+                'error' => $badAuth ? 'bad response authenticator (wrong secret?)' : 'timeout'];
     }
-
-    $rlen = unpack('n', substr($resp, 2, 2))[1];
-    if ($rlen < 20 || $rlen > strlen($resp)) {
-        return ['ok' => false, 'code' => null, 'attrs' => [], 'error' => 'malformed reply'];
-    }
-    $resp = substr($resp, 0, $rlen);
-    $check = md5(substr($resp, 0, 4) . $reqAuth . substr($resp, 20) . $secret, true);
-    if (!hash_equals($check, substr($resp, 4, 16))) {
-        return ['ok' => false, 'code' => ord($resp[0]), 'attrs' => [], 'error' => 'bad response authenticator (wrong secret?)'];
-    }
+    $rlen = strlen($resp);
     $out = [];
     $p = 20;
     while ($p + 2 <= $rlen) {
@@ -594,7 +610,7 @@ function radius_apply_customer(array $c, ?array $program, ?string $oldUser = nul
     $log[] = ['accept' => 'RADIUS: povolený', 'restrict' => 'RADIUS: obmedzený', 'reject' => 'RADIUS: zamietnutý'][$new['state']];
 
     // premenovany login: stare riadky prec, jeho relacia sa odpoji
-    if ($oldUser !== null && $oldUser !== '' && $oldUser !== $user) {
+    if ($oldUser !== null && $oldUser !== '' && strcasecmp($oldUser, $user) !== 0) {
         radius_delete_user($oldUser);
         foreach (radius_open_sessions($oldUser) as $s) {
             $r = radius_disconnect($oldUser, $s, $router);
@@ -680,11 +696,12 @@ function radius_forget_customer(array $c): array
     if ($u === '' || !radius_available() || radius_username_taken($u, (int)$c['id'])) {
         return [];
     }
-    $router = null;
-    if (!empty($c['router_id'])) {
-        $router = db()->query('SELECT * FROM routers WHERE id = ' . (int)$c['router_id'])->fetch() ?: null;
+    // len riadky - relacie odpojilo uz ukoncenie/presun do kosa (inak by sa PoD posielal dvakrat)
+    try {
+        return radius_delete_user($u) ? ['RADIUS záznamy zmazané'] : [];
+    } catch (Throwable $e) {
+        return [['RADIUS chyba: %s', $e->getMessage()]];
     }
-    return radius_remove_customer($u, $router);
 }
 
 /**

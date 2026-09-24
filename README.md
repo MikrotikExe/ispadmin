@@ -280,7 +280,9 @@ PPPoE CPE ──PPPoE──> MikroTik (NAS) ──RADIUS 1812/1813──> FreeRA
 4. In **Routers**, edit a router, set *PPPoE via RADIUS = yes* and save. A strong secret is generated if you
    leave it empty. Fill *NAS IP* only if the router sends RADIUS from a different address than its API host.
 5. Paste the **MikroTik configuration** shown under the router form (see below), then press **RADIUS test**.
-6. Re-save the PPPoE customers of that router (or change them as needed) to create their RADIUS rows.
+6. Nothing else to do for existing customers: when *PPPoE via RADIUS* is switched on or off, the router's PPPoE
+   customers are re-applied automatically (RADIUS rows ↔ `/ppp secret`). Logins already used by a customer on another
+   RADIUS router are reported and skipped — RADIUS logins must be unique.
 
 Non-Docker installs: install FreeRADIUS 3.2 with `freeradius-mysql`, use the files in `docker/freeradius/` as the
 `sql` module, virtual servers and `clients.conf`, and set the same environment variables for PHP.
@@ -307,6 +309,8 @@ Non-Docker installs: install FreeRADIUS 3.2 with `freeradius-mysql`, use the fil
   (and, if it is one of the router's own addresses, add `src-address=` to `/radius`). Typical case: the router sits
   **behind NAT** — its API is reachable on a forwarded/1:1 address, but outgoing RADIUS leaves through another public
   address. Check with `tcpdump -ni any udp port 1812` on the ISPadmin host which source address really arrives.
+  Each NAS IP (and each secret) can belong to one router only, so two RADIUS routers behind the same NAT address are
+  not supported — give them separate public addresses or exempt them from NAT.
 - CoA / disconnect packets are always sent to the router's **API host** (with the router's secret), not to the
   NAS-IP-Address the router reports, so they also reach routers behind NAT as long as UDP 3799 is forwarded like the API port.
   The reply is accepted even when it comes back from another address (an upstream router that masquerades the NAS
@@ -327,7 +331,12 @@ Non-Docker installs: install FreeRADIUS 3.2 with `freeradius-mysql`, use the fil
   Either way the customer record itself keeps the password so it can be shown in the form — protect the database.
 - **Never expose 1812, 1813 or 3799 to the internet.** Bind FreeRADIUS to the management network
   (`RADIUS_BIND`) and restrict it with the host firewall. FreeRADIUS answers only addresses present in the `nas` table.
-- Every router gets its own secret (minimum 16 characters); the app refuses to reuse one.
+- Every router gets its own secret (16–60 characters); the app refuses to reuse one. Only `admin` / `administrator`
+  accounts see and change RADIUS secrets — with a secret one could forge CoA / disconnect packets.
+- `RADIUS_REQUIRE_MA=yes` (in `.env`) makes FreeRADIUS require the Message-Authenticator attribute from routers
+  (BlastRADIUS hardening). Enable it once all RADIUS routers run RouterOS 7.15 or newer.
+- FreeRADIUS does not log passwords: the stock `radpostauth` query would store PAP / CHAP passwords (also wrong
+  attempts) in cleartext, so they are stripped from the request before the login attempt is logged.
 
 ### Accounting and export
 
@@ -356,7 +365,9 @@ All options are in the `radius` block of `config.php`, most of them settable fro
 `ISPADMIN_RADIUS_COA_STATUS`, `RADIUS_COA_SOURCE`. The Mikrotik-Rate-Limit format is `rate_limit_template`
 (`{ul}/{dl}` by default; with plan aggregation use `{ul}/{dl} 0/0 0/0 0/0 8 {ul_at}/{dl_at}`).
 
-Turning `ISPADMIN_RADIUS` off again makes RADIUS routers fall back to `/ppp secret` provisioning on the next save.
+Turning `ISPADMIN_RADIUS` off again makes RADIUS routers fall back to `/ppp secret` provisioning on the next save of
+each customer. To switch a single router back, set *PPPoE via RADIUS = no* on it instead — its customers are
+re-applied immediately.
 
 ## Circuit ID (DHCP Option 82)
 

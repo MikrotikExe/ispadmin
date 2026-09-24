@@ -312,6 +312,15 @@ function purge_expired_trash(): void
 {
     $cfg = require __DIR__ . '/../config.php';
     $driver = $cfg['db']['driver'];
+    // RADIUS riadky vymazavanych zakaznikov (inak by ich login fungoval aj po zmazani)
+    if ($driver === 'mysql' && !empty($cfg['radius']['enabled'])) {
+        try {
+            require_once __DIR__ . '/radius.php';
+            foreach (db()->query("SELECT * FROM customers WHERE deleted_at IS NOT NULL AND deleted_at < (NOW() - INTERVAL 30 DAY) AND pppoe_user <> ''") as $c) {
+                radius_forget_customer($c);
+            }
+        } catch (Throwable $e) { /* ticho */ }
+    }
     try {
         if ($driver === 'mysql') {
             db()->exec("DELETE FROM customers WHERE deleted_at IS NOT NULL AND deleted_at < (NOW() - INTERVAL 30 DAY)");
