@@ -169,7 +169,7 @@ function mt_apply_customer(int $customerId, ?string $oldPppoeUser = null): array
     if (radius_available()) {
         foreach (array_unique(array_filter([trim((string)($c['pppoe_user'] ?? '')), trim((string)$oldPppoeUser)])) as $u) {
             if (!radius_username_taken($u, (int)$c['id'])) {
-                $radiusLog = array_merge($radiusLog, radius_remove_customer($u));
+                $radiusLog = array_merge($radiusLog, radius_remove_customer($u, $router));
             }
         }
     }
@@ -468,7 +468,7 @@ function mt_apply_customer_radius(array $c, array $router, ?array $program, ?str
             db()->prepare('UPDATE customers SET pppoe_pass = ? WHERE id = ?')->execute([$c['pppoe_pass'], (int)$c['id']]);
             $log[] = 'PPPoE heslo vygenerované';
         }
-        $res = radius_apply_customer($c, $program, $oldUser);
+        $res = radius_apply_customer($c, $program, $oldUser, $router);
         $log = array_merge($log, $res['log']);
     } catch (Throwable $e) {
         $log[] = ['RADIUS chyba: %s', $e->getMessage()];

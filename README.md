@@ -279,8 +279,12 @@ Non-Docker installs: install FreeRADIUS 3.2 with `freeradius-mysql`, use the fil
   with the real secret filled in.
 - CoA / disconnect packets come from the ISPadmin host. RouterOS only accepts them from an address that is in its
   `/radius` list, so the host must send from `<ISPADMIN_RADIUS_IP>` (set `RADIUS_COA_SOURCE` if it has several).
-- If the router sends RADIUS from another address than its API host, add `src-address=` and put that address into
-  *NAS IP* in ISPadmin.
+- If the router sends RADIUS from another address than its API host, put that address into *NAS IP* in ISPadmin
+  (and, if it is one of the router's own addresses, add `src-address=` to `/radius`). Typical case: the router sits
+  **behind NAT** — its API is reachable on a forwarded/1:1 address, but outgoing RADIUS leaves through another public
+  address. Check with `tcpdump -ni any udp port 1812` on the ISPadmin host which source address really arrives.
+- CoA / disconnect packets are always sent to the router's **API host** (with the router's secret), not to the
+  NAS-IP-Address the router reports, so they also reach routers behind NAT as long as UDP 3799 is forwarded like the API port.
 - One session per login (`/ppp profile ... only-one=yes`) is left to your preference.
 - The API user additionally needs read access to `/radius` and `/ppp aaa` for the RADIUS test button,
   and `ppp/secret` remove rights for the cleanup of old local secrets.

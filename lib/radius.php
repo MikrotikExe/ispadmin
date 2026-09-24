@@ -501,27 +501,56 @@ function radius_session_attrs(string $username, array $sess): array
     return $a;
 }
 
+/**
+ * Kam poslat CoA/PoD pre relaciu a s akym secretom. Vrati [host, secret] alebo [null, chyba].
+ *
+ * NAS-IP-Address v radacct nemusi byt adresa, na ktoru sa da CoA poslat - napr. MikroTik za NAT
+ * posiela vlastnu (privatnu) adresu a RADIUS chodi zo zdielanej verejnej. Preto sa CoA posiela
+ * na API host routera (ten je z ISPadmin dosiahnutelny vzdy) so secretom routera:
+ *   1) router, ktoreho host alebo NAS IP = nasipaddress relacie,
+ *   2) inak router zakaznika ($router),
+ *   3) inak nasipaddress + secret z tabulky nas.
+ */
+function radius_coa_target(array $sess, ?array $router): array
+{
+    $nas = trim((string)($sess['nasipaddress'] ?? ''));
+    if ($nas !== '') {
+        $st = db()->prepare('SELECT * FROM routers WHERE pppoe_radius = 1 AND (host = ? OR radius_nas_ip = ?) LIMIT 1');
+        $st->execute([$nas, $nas]);
+        $hit = $st->fetch();
+        if ($hit) {
+            $router = $hit;
+        }
+    }
+    if ($router && trim((string)($router['radius_secret'] ?? '')) !== '') {
+        return [trim((string)$router['host']), (string)$router['radius_secret']];
+    }
+    $secret = $nas !== '' ? radius_nas_secret($nas) : null;
+    if ($secret === null) {
+        return [null, 'NAS ' . $nas . ' not in nas table'];
+    }
+    return [$nas, $secret];
+}
+
 /** Disconnect-Request (PoD) pre jednu relaciu. */
-function radius_disconnect(string $username, array $sess): array
+function radius_disconnect(string $username, array $sess, ?array $router = null): array
 {
     $rc = radius_cfg();
-    $nas = (string)$sess['nasipaddress'];
-    $secret = radius_nas_secret($nas);
-    if ($secret === null) {
-        return ['ok' => false, 'code' => null, 'attrs' => [], 'error' => 'NAS ' . $nas . ' not in nas table'];
+    [$host, $secret] = radius_coa_target($sess, $router);
+    if ($host === null) {
+        return ['ok' => false, 'code' => null, 'attrs' => [], 'error' => $secret];
     }
-    return radius_send($nas, (int)$rc['coa']['port'], $secret, RAD_DISCONNECT_REQ,
+    return radius_send($host, (int)$rc['coa']['port'], $secret, RAD_DISCONNECT_REQ,
         radius_session_attrs($username, $sess), (int)$rc['coa']['timeout'], (string)$rc['coa']['source_ip']);
 }
 
 /** CoA-Request: znovu aplikuje Mikrotik-Rate-Limit / Address-List / Filter-Id na relacii. */
-function radius_coa(string $username, array $sess, array $reply): array
+function radius_coa(string $username, array $sess, array $reply, ?array $router = null): array
 {
     $rc = radius_cfg();
-    $nas = (string)$sess['nasipaddress'];
-    $secret = radius_nas_secret($nas);
-    if ($secret === null) {
-        return ['ok' => false, 'code' => null, 'attrs' => [], 'error' => 'NAS ' . $nas . ' not in nas table'];
+    [$host, $secret] = radius_coa_target($sess, $router);
+    if ($host === null) {
+        return ['ok' => false, 'code' => null, 'attrs' => [], 'error' => $secret];
     }
     $attrs = radius_session_attrs($username, $sess);
     $map = ['Mikrotik-Rate-Limit' => RAD_MT_RATE_LIMIT, 'Mikrotik-Address-List' => RAD_MT_ADDRESS_LIST];
@@ -532,7 +561,7 @@ function radius_coa(string $username, array $sess, array $reply): array
             $attrs[] = [RAD_ATTR_FILTER_ID, $v];
         }
     }
-    return radius_send($nas, (int)$rc['coa']['port'], $secret, RAD_COA_REQ,
+    return radius_send($host, (int)$rc['coa']['port'], $secret, RAD_COA_REQ,
         $attrs, (int)$rc['coa']['timeout'], (string)$rc['coa']['source_ip']);
 }
 
@@ -541,7 +570,7 @@ function radius_coa(string $username, array $sess, array $reply): array
  * $oldUser = predosly PPPoE login (ak sa zmenil), aby sa stare riadky zmazali a relacia odpojila.
  * Vrati ['state' => ..., 'log' => [kluce prekladu alebo [format, arg...]]]
  */
-function radius_apply_customer(array $c, ?array $program, ?string $oldUser = null): array
+function radius_apply_customer(array $c, ?array $program, ?string $oldUser = null, ?array $router = null): array
 {
     $rc = radius_cfg();
     $user = trim((string)$c['pppoe_user']);
@@ -556,7 +585,7 @@ function radius_apply_customer(array $c, ?array $program, ?string $oldUser = nul
     if ($oldUser !== null && $oldUser !== '' && $oldUser !== $user) {
         radius_delete_user($oldUser);
         foreach (radius_open_sessions($oldUser) as $s) {
-            $r = radius_disconnect($oldUser, $s);
+            $r = radius_disconnect($oldUser, $s, $router);
             $log[] = $r['ok'] && $r['code'] === RAD_DISCONNECT_ACK
                 ? 'relácia odpojená (PoD)' : ['PoD zlyhalo: %s', radius_reply_text($r)];
         }
@@ -582,7 +611,7 @@ function radius_apply_customer(array $c, ?array $program, ?string $oldUser = nul
 
     foreach ($sessions as $s) {
         if ($new['state'] === 'reject' || $wasReject) {
-            $r = radius_disconnect($user, $s);
+            $r = radius_disconnect($user, $s, $router);
             $log[] = $r['ok'] && $r['code'] === RAD_DISCONNECT_ACK ? 'relácia odpojená (PoD)' : ['PoD zlyhalo: %s', radius_reply_text($r)];
         } elseif ($structural) {
             $lists = ['Mikrotik-Address-List' => 1, 'Filter-Id' => 1];
@@ -592,18 +621,18 @@ function radius_apply_customer(array $c, ?array $program, ?string $oldUser = nul
                     || (isset($oldR['Filter-Id']) && !isset($newR['Filter-Id']));
             if ($rc['coa']['status_method'] === 'coa' && $onlyLists && !$removes) {
                 $send = array_intersect_key($newR, ['Mikrotik-Rate-Limit' => 1] + $lists);
-                $r = radius_coa($user, $s, $send);
+                $r = radius_coa($user, $s, $send, $router);
                 $log[] = $r['ok'] && $r['code'] === RAD_COA_ACK ? 'zmena naživo (CoA)' : ['CoA zlyhalo: %s', radius_reply_text($r)];
             } else {
-                $r = radius_disconnect($user, $s);
+                $r = radius_disconnect($user, $s, $router);
                 $log[] = $r['ok'] && $r['code'] === RAD_DISCONNECT_ACK ? 'relácia odpojená (PoD)' : ['PoD zlyhalo: %s', radius_reply_text($r)];
             }
         } elseif ($rateChanged && isset($newR['Mikrotik-Rate-Limit'])) {
-            $r = radius_coa($user, $s, ['Mikrotik-Rate-Limit' => $newR['Mikrotik-Rate-Limit']]);
+            $r = radius_coa($user, $s, ['Mikrotik-Rate-Limit' => $newR['Mikrotik-Rate-Limit']], $router);
             $log[] = $r['ok'] && $r['code'] === RAD_COA_ACK ? 'zmena naživo (CoA)' : ['CoA zlyhalo: %s', radius_reply_text($r)];
         } elseif ($rateChanged) {
             // rychlost zrusena uplne -> CoA ju nevie "odobrat", treba nove prihlasenie
-            $r = radius_disconnect($user, $s);
+            $r = radius_disconnect($user, $s, $router);
             $log[] = $r['ok'] && $r['code'] === RAD_DISCONNECT_ACK ? 'relácia odpojená (PoD)' : ['PoD zlyhalo: %s', radius_reply_text($r)];
         }
     }
@@ -611,7 +640,7 @@ function radius_apply_customer(array $c, ?array $program, ?string $oldUser = nul
 }
 
 /** Odpoji vsetky relacie a zmaze riadky pouzivatela (zmazany zakaznik / zmena na DHCP). */
-function radius_remove_customer(string $username): array
+function radius_remove_customer(string $username, ?array $router = null): array
 {
     $log = [];
     if ($username === '' || !radius_available()) return $log;
@@ -620,7 +649,7 @@ function radius_remove_customer(string $username): array
             $log[] = 'RADIUS záznamy zmazané';
         }
         foreach (radius_open_sessions($username) as $s) {
-            $r = radius_disconnect($username, $s);
+            $r = radius_disconnect($username, $s, $router);
             $log[] = $r['ok'] && $r['code'] === RAD_DISCONNECT_ACK ? 'relácia odpojená (PoD)' : ['PoD zlyhalo: %s', radius_reply_text($r)];
         }
     } catch (Throwable $e) {
@@ -639,7 +668,11 @@ function radius_forget_customer(array $c): array
     if ($u === '' || !radius_available() || radius_username_taken($u, (int)$c['id'])) {
         return [];
     }
-    return radius_remove_customer($u);
+    $router = null;
+    if (!empty($c['router_id'])) {
+        $router = db()->query('SELECT * FROM routers WHERE id = ' . (int)$c['router_id'])->fetch() ?: null;
+    }
+    return radius_remove_customer($u, $router);
 }
 
 /**
