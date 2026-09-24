@@ -285,6 +285,8 @@ Non-Docker installs: install FreeRADIUS 3.2 with `freeradius-mysql`, use the fil
   address. Check with `tcpdump -ni any udp port 1812` on the ISPadmin host which source address really arrives.
 - CoA / disconnect packets are always sent to the router's **API host** (with the router's secret), not to the
   NAS-IP-Address the router reports, so they also reach routers behind NAT as long as UDP 3799 is forwarded like the API port.
+  The reply is accepted even when it comes back from another address (an upstream router that masquerades the NAS
+  subnet); it is authenticated by the shared secret, and the History entry shows `via <address>` in that case.
 - One session per login (`/ppp profile ... only-one=yes`) is left to your preference.
 - The API user additionally needs read access to `/radius` and `/ppp aaa` for the RADIUS test button,
   and `ppp/secret` remove rights for the cleanup of old local secrets.

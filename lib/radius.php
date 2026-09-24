@@ -419,29 +419,35 @@ function radius_send(string $host, int $port, string $secret, int $code, array $
     }
     $packet = $hdr . $reqAuth . $body;
 
-    $ctxOpts = [];
-    if ($sourceIp !== '') {
-        $ctxOpts['socket'] = ['bindto' => $sourceIp . ':0'];
+    // Nespojeny UDP socket: odpoved sa prijme aj z inej adresy, nez kam isla poziadavka.
+    // NAS za NAT (napr. brana maskuje verejne IP inej podsiete) odpoveda z adresy brany;
+    // spojeny socket by takuto odpoved zahodil a CoA by koncilo timeoutom. Pravost odpovede
+    // aj tak overuje Response Authenticator (MD5 so secretom) nizsie.
+    $dst = filter_var($host, FILTER_VALIDATE_IP) ? $host : gethostbyname($host);
+    if (!filter_var($dst, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        return ['ok' => false, 'code' => null, 'attrs' => [], 'error' => 'cannot resolve ' . $host];
     }
     $errno = 0; $errstr = '';
-    $sock = @stream_socket_client('udp://' . $host . ':' . $port, $errno, $errstr, $timeout,
-        STREAM_CLIENT_CONNECT, stream_context_create($ctxOpts));
+    $sock = @stream_socket_server('udp://' . ($sourceIp !== '' ? $sourceIp : '0.0.0.0') . ':0', $errno, $errstr, STREAM_SERVER_BIND);
     if (!$sock) {
         return ['ok' => false, 'code' => null, 'attrs' => [], 'error' => $errstr ?: 'socket error'];
     }
-    stream_set_timeout($sock, $timeout);
 
     $resp = '';
+    $from = '';
     for ($try = 0; $try < 2 && $resp === ''; $try++) {
-        @fwrite($sock, $packet);
-        while (true) {
-            $r = @fread($sock, 4096);
-            if ($r === false || $r === '') {
-                $resp = '';
+        @stream_socket_sendto($sock, $packet, 0, $dst . ':' . $port);
+        $deadline = microtime(true) + $timeout;
+        while (($left = $deadline - microtime(true)) > 0) {
+            $r = [$sock]; $w = null; $e = null;
+            if (!@stream_select($r, $w, $e, (int)$left, (int)(($left - (int)$left) * 1e6))) {
                 break;               // timeout -> dalsi pokus
             }
-            if (strlen($r) >= 20 && ord($r[1]) === $id) {
-                $resp = $r;
+            $peer = '';
+            $d = @stream_socket_recvfrom($sock, 4096, 0, $peer);
+            if (is_string($d) && strlen($d) >= 20 && ord($d[1]) === $id) {
+                $resp = $d;
+                $from = $peer;
                 break;
             }
             // cudzi/oneskoreny paket - ignoruj a cakaj dalej
@@ -470,7 +476,8 @@ function radius_send(string $host, int $port, string $secret, int $code, array $
         $out[] = [$t, substr($resp, $p + 2, $l - 2)];
         $p += $l;
     }
-    return ['ok' => true, 'code' => ord($resp[0]), 'attrs' => $out, 'error' => ''];
+    $via = ($from !== '' && explode(':', $from)[0] !== $dst) ? explode(':', $from)[0] : '';
+    return ['ok' => true, 'code' => ord($resp[0]), 'attrs' => $out, 'error' => '', 'from' => $via];
 }
 
 /** Popis odpovede na CoA/Disconnect vratane Error-Cause. */
@@ -480,6 +487,9 @@ function radius_reply_text(array $res): string
     $names = [RAD_COA_ACK => 'CoA-ACK', RAD_COA_NAK => 'CoA-NAK', RAD_DISCONNECT_ACK => 'Disconnect-ACK',
               RAD_DISCONNECT_NAK => 'Disconnect-NAK', RAD_ACCESS_ACCEPT => 'Access-Accept', RAD_ACCESS_REJECT => 'Access-Reject'];
     $s = $names[$res['code']] ?? ('code ' . $res['code']);
+    if (!empty($res['from'])) {
+        $s .= ' via ' . $res['from'];
+    }
     foreach ($res['attrs'] as [$t, $v]) {
         if ($t === RAD_ATTR_ERROR_CAUSE && strlen($v) === 4) {
             $s .= ' (Error-Cause ' . unpack('N', $v)[1] . ')';
