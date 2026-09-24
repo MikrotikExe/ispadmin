@@ -27,7 +27,7 @@ function layout_header(string $active = ''): void
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= h($cfg['app_name']) ?></title>
 <script>(function(){try{var t=localStorage.getItem('theme');if(!t){t=window.matchMedia&&matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
-<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="assets/style.css?v=<?= (int)@filemtime(__DIR__ . '/../public/assets/style.css') ?>">
 </head>
 <body>
 <div class="wrap<?= $active !== 'index.php' ? ' page-form' : '' ?>">
