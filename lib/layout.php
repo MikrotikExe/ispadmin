@@ -94,6 +94,28 @@ function flash(string $type, string $msg): void
     $_SESSION['flash'][] = ['type' => $type, 'msg' => $msg, 'at' => date('H:i:s')];
 }
 
+/**
+ * Viacriadkovy vysledok (napr. RADIUS test) v jednom bloku.
+ * $items = [[stav, text]], stav: true = OK, null = upozornenie, false = chyba.
+ * Farba bloku = najhorsi vysledok; chyby a upozornenia idu navrch.
+ */
+function flash_block(string $title, array $items): void
+{
+    $rank = static fn($st) => $st === false ? 0 : ($st === null ? 1 : 2);
+    $idx = array_keys($items);
+    usort($idx, static fn($a, $b) => [$rank($items[$a][0]), $a] <=> [$rank($items[$b][0]), $b]);
+    $sorted = array_map(static fn($i) => $items[$i], $idx);
+    $cnt = [0, 0, 0];
+    foreach ($sorted as [$st]) { $cnt[$rank($st)]++; }
+    $type = $cnt[0] > 0 ? 'err' : ($cnt[1] > 0 ? 'info' : 'ok');
+    boot_session();
+    $_SESSION['flash'][] = [
+        'type' => $type, 'msg' => $title, 'at' => date('H:i:s'),
+        'counts' => ['err' => $cnt[0], 'info' => $cnt[1], 'ok' => $cnt[2]],
+        'items' => array_map(static fn($it) => [$it[0] === false ? 'err' : ($it[0] === null ? 'info' : 'ok'), (string)$it[1]], $sorted),
+    ];
+}
+
 function render_flash(): void
 {
     boot_session();
@@ -104,6 +126,25 @@ function render_flash(): void
     foreach ($_SESSION['flash'] as $f) {
         $type = $f['type'] === 'error' ? 'err' : $f['type'];   // zaloha.php pouziva 'error'
         $at = (string)($f['at'] ?? '');
+        if (!empty($f['items'])) {
+            // blok: hlavicka s poctami + zoznam kontrol
+            $c = $f['counts'] ?? [];
+            $badges = '';
+            if (!empty($c['ok']))   $badges .= '<span class="fb-badge ok">' . h(t('%d × OK', (int)$c['ok'])) . '</span>';
+            if (!empty($c['info'])) $badges .= '<span class="fb-badge info">' . h(t('upozornenia: %d', (int)$c['info'])) . '</span>';
+            if (!empty($c['err']))  $badges .= '<span class="fb-badge err">' . h(t('chyby: %d', (int)$c['err'])) . '</span>';
+            $list = '';
+            foreach ($f['items'] as [$st, $txt]) {
+                $list .= '<li class="' . h($st) . '"><span class="fb-ico">' . ($icons[$st] ?? '') . '</span><span>' . h($txt) . '</span></li>';
+            }
+            echo '<div class="flash block ' . h($type) . '" role="status">'
+                . ($at !== '' ? '<span class="flash-time">' . h($at) . '</span>' : '')
+                . '<span class="flash-msg fb-title">' . h($f['msg']) . '<span class="fb-badges">' . $badges . '</span></span>'
+                . '<ul class="fb-list">' . $list . '</ul>'
+                . '<span class="flash-stale">' . h(t('predošlé uloženie · zmeny vo formulári ešte nie sú uložené')) . '</span>'
+                . '</div>';
+            continue;
+        }
         echo '<div class="flash ' . h($type) . '" role="status">'
             . ($at !== '' ? '<span class="flash-time">' . h($at) . '</span>' : '')
             . '<span class="flash-msg">' . (isset($icons[$type]) ? '<span class="flash-ico">' . $icons[$type] . '</span>' : '') . h($f['msg']) . '</span>'

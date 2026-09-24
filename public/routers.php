@@ -30,9 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('err', t('RADIUS nie je pre tento router zapnutý.'));
         } else {
             $res = radius_test_router($r);
-            foreach ($res['lines'] as [$ok, $line]) {
-                flash($ok === null ? 'info' : ($ok ? 'ok' : 'err'), t('RADIUS test %s: %s', $r['name'], $line));
-            }
+            flash_block(t('RADIUS test %s', $r['name']), $res['lines']);
         }
         header('Location: routers.php');
         exit;

@@ -463,4 +463,8 @@ return [
     'MikroTik: RADIUS odpovedá — požiadavky %d, prijaté %d, odmietnuté %d, timeouty %d (od reštartu routera).' => 'MikroTik: RADIUS odpovídá — požadavky %d, přijaté %d, odmítnuté %d, timeouty %d (od restartu routeru).',
     'MikroTik: timeoutov je viac než odpovedí — RADIUS bol časť času nedostupný (NAT, firewall alebo výpadok). Ak je to stará chyba, počítadlá vynuluje reštart routera.' => 'MikroTik: timeoutů je víc než odpovědí — RADIUS byl část času nedostupný (NAT, firewall nebo výpadek). Pokud jde o starou chybu, počítadla vynuluje restart routeru.',
     'MikroTik: %d odpovedí s neplatným podpisom (bad-replies) — secret v /radius sa pravdepodobne nezhoduje s ISPadmin.' => 'MikroTik: %d odpovědí s neplatným podpisem (bad-replies) — secret v /radius se pravděpodobně neshoduje s ISPadmin.',
+    'RADIUS test %s' => 'RADIUS test %s',
+    '%d × OK' => '%d × OK',
+    'upozornenia: %d' => 'upozornění: %d',
+    'chyby: %d' => 'chyby: %d',
 ];

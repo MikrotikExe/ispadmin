@@ -138,6 +138,18 @@ tr:hover td{background:var(--row-hover)}
 .flash.stale{border-style:dashed;background:color-mix(in srgb,var(--fc) 6%,transparent)}
 .flash.stale::before,.flash.stale>.flash-time,.flash.stale>.flash-msg{opacity:.45}
 .flash.stale .flash-stale{display:block}
+/* flash blok (viac kontrol v jednej hlaske, napr. RADIUS test) */
+.flash.block .fb-title{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;font-size:15px;font-weight:700;color:var(--navy)}
+.fb-badges{display:inline-flex;flex-wrap:wrap;gap:6px}
+.fb-badge{border-radius:11px;padding:2px 10px;font-size:12px;font-weight:700;color:#fff;background:var(--green)}
+.fb-badge.info{background:var(--blue)}
+.fb-badge.err{background:var(--red)}
+.fb-list{flex-basis:100%;list-style:none;margin:4px 0 0;padding:8px 0 0;border-top:1px solid color-mix(in srgb,var(--fc) 30%,transparent)}
+.fb-list li{display:flex;gap:8px;padding:3px 0;font-size:13px;font-weight:400;color:var(--ink);overflow-wrap:anywhere}
+.fb-list li .fb-ico{flex:none;width:14px;font-weight:700;color:var(--green)}
+.fb-list li.info,.fb-list li.info .fb-ico{color:var(--link);font-weight:600}
+.fb-list li.err,.fb-list li.err .fb-ico{color:var(--red);font-weight:600}
+.flash.stale>.fb-list{opacity:.45}
 
 /* login */
 .login-box{max-width:330px;margin:13vh auto;border:1px solid var(--panel-line);border-radius:var(--radius);
