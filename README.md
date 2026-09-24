@@ -267,12 +267,14 @@ Non-Docker installs: install FreeRADIUS 3.2 with `freeradius-mysql`, use the fil
 /radius add service=ppp address=<ISPADMIN_RADIUS_IP> secret="<ROUTER_RADIUS_SECRET>" authentication-port=1812 accounting-port=1813
 /radius incoming set accept=yes port=3799
 /ppp aaa set use-radius=yes accounting=yes interim-update=5m
-/ppp profile add name=ispadmin-pppoe use-radius=yes
+/ppp profile add name=ispadmin-pppoe local-address=<PPP_GATEWAY_IP>
 /interface pppoe-server server add service-name=pppoe interface=<CUSTOMER_IFACE_OR_VLAN> default-profile=ispadmin-pppoe authentication=pap,chap,mschap2 disabled=no
 ```
 
 - `<ISPADMIN_RADIUS_IP>` is the address the **FreeRADIUS container listens on** (`RADIUS_BIND`), not necessarily
   the address of the web UI. ISPadmin does not listen on 1812/1813 itself.
+- `<PPP_GATEWAY_IP>` is the router-side address of the PPPoE sessions (e.g. the gateway of the customers' subnet).
+  RADIUS use is switched on globally in `/ppp aaa`; `/ppp profile` has no `use-radius` option.
 - `<ROUTER_RADIUS_SECRET>` must match the router's secret in ISPadmin — the Routers page prints this block
   with the real secret filled in.
 - CoA / disconnect packets come from the ISPadmin host. RouterOS only accepts them from an address that is in its

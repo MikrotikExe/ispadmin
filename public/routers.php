@@ -266,7 +266,7 @@ render_flash();
     . (trim((string)$e['radius_nas_ip']) !== '' ? ' src-address=' . trim((string)$e['radius_nas_ip']) : '') . "\n"
     . "/radius incoming set accept=yes port=3799\n"
     . "/ppp aaa set use-radius=yes accounting=yes interim-update={$interim}s\n"
-    . "/ppp profile add name=ispadmin-pppoe use-radius=yes\n"
+    . "/ppp profile add name=ispadmin-pppoe local-address=<PPP_GATEWAY_IP>\n"
     . "/interface pppoe-server server add service-name=pppoe interface=<CUSTOMER_IFACE_OR_VLAN> default-profile=ispadmin-pppoe authentication=pap,chap,mschap2 disabled=no";
 ?>
 <div class="panel-title"><?= t('MikroTik konfigurácia pre RADIUS (%s)', h($e['name'])) ?></div>
