@@ -456,4 +456,5 @@ return [
     'PPPoE heslo vygenerované' => 'PPPoE jelszó generálva',
     'lokálny PPP secret zmazaný' => 'helyi PPP secret törölve',
     'lokálny PPP secret neskontrolovaný (API: %s)' => 'helyi PPP secret nincs ellenőrizve (API: %s)',
+    'predošlé uloženie · zmeny vo formulári ešte nie sú uložené' => 'előző mentés · az űrlap módosításai még nincsenek mentve',
 ];

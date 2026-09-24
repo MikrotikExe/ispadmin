@@ -144,8 +144,8 @@ render_flash();
       <div class="cell"><label><?= t('API port') ?></label><input type="number" name="api_port" value="<?= (int)$e['api_port'] ?>"></div>
     </div>
     <div class="grid g4">
-      <div class="cell"><label><?= t('API user') ?></label><input name="api_user" value="<?= h($e['api_user']) ?>"></div>
-      <div class="cell"><label><?= t('API heslo') ?></label><input type="password" name="api_pass" placeholder="<?= $e['id'] ? h(t('(nemeniť)')) : '' ?>"></div>
+      <div class="cell"><label><?= t('API user') ?></label><input name="api_user" value="<?= h($e['api_user']) ?>" autocomplete="off"></div>
+      <div class="cell"><label><?= t('API heslo') ?></label><input type="password" name="api_pass" placeholder="<?= $e['id'] ? h(t('(nemeniť)')) : '' ?>" autocomplete="new-password"></div>
       <div class="cell"><label><?= t('DHCP server') ?></label><input name="dhcp_server" value="<?= h($e['dhcp_server']) ?>" placeholder="<?= h(t('(voliteľné)')) ?>"></div>
       <div class="cell"><label><?= t('SSL (8729)') ?></label>
         <select name="use_ssl"><option value="0"<?= $e['use_ssl'] ? '' : ' selected' ?>><?= t('nie') ?></option>

@@ -456,4 +456,5 @@ return [
     'PPPoE heslo vygenerované' => 'parolă PPPoE generată',
     'lokálny PPP secret zmazaný' => 'PPP secret local șters',
     'lokálny PPP secret neskontrolovaný (API: %s)' => 'PPP secret local neverificat (API: %s)',
+    'predošlé uloženie · zmeny vo formulári ešte nie sú uložené' => 'salvarea anterioară · modificările din formular nu sunt încă salvate',
 ];

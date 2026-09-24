@@ -75,6 +75,9 @@ function layout_footer(): void
 function toggleTheme(){var h=document.documentElement;var t=h.getAttribute('data-theme')==='dark'?'light':'dark';h.setAttribute('data-theme',t);try{localStorage.setItem('theme',t);}catch(e){}themeIcon();}
 function themeIcon(){var b=document.querySelector('.theme-toggle');if(b)b.textContent=document.documentElement.getAttribute('data-theme')==='dark'?'☀':'☾';}
 themeIcon();
+// po zmene vo formulari zbledne hlaska - patri k predoslemu ulozeniu, nie k tomu, co je vyplnene teraz
+(function(){function stale(e){var f=e.target&&e.target.form;if(!f||f.classList.contains('search'))return;var l=document.querySelectorAll('.flash');for(var i=0;i<l.length;i++)l[i].classList.add('stale');}
+document.addEventListener('input',stale,true);document.addEventListener('change',stale,true);})();
 function _rnd(n){try{var a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]%n;}catch(e){return Math.floor(Math.random()*n);}}
 function genPwd(len){len=len||14;var L="abcdefghijkmnpqrstuvwxyz",U="ABCDEFGHJKLMNPQRSTUVWXYZ",D="23456789",S="!@#$%-_";var all=L+U+D+S;var p=[L[_rnd(L.length)],U[_rnd(U.length)],D[_rnd(D.length)],S[_rnd(S.length)]];while(p.length<len)p.push(all[_rnd(all.length)]);for(var i=p.length-1;i>0;i--){var j=_rnd(i+1);var t=p[i];p[i]=p[j];p[j]=t;}return p.join('');}
 function fillPwd(){var v=genPwd(14);for(var i=0;i<arguments.length;i++){var el=document.getElementById(arguments[i]);if(el){el.type='text';el.value=v;}}}
@@ -87,7 +90,8 @@ function fillPwd(){var v=genPwd(14);for(var i=0;i<arguments.length;i++){var el=d
 function flash(string $type, string $msg): void
 {
     boot_session();
-    $_SESSION['flash'][] = ['type' => $type, 'msg' => $msg];
+    // cas ulozenia - pri dvoch rovnakych hlaskach po sebe je hned vidno, ze ide o nove ulozenie
+    $_SESSION['flash'][] = ['type' => $type, 'msg' => $msg, 'at' => date('H:i:s')];
 }
 
 function render_flash(): void
@@ -96,8 +100,15 @@ function render_flash(): void
     if (empty($_SESSION['flash'])) {
         return;
     }
+    $icons = ['ok' => '✓', 'err' => '✕', 'info' => 'ℹ'];
     foreach ($_SESSION['flash'] as $f) {
-        echo '<div class="flash ' . h($f['type']) . '">' . h($f['msg']) . '</div>';
+        $type = $f['type'] === 'error' ? 'err' : $f['type'];   // zaloha.php pouziva 'error'
+        $at = (string)($f['at'] ?? '');
+        echo '<div class="flash ' . h($type) . '" role="status">'
+            . ($at !== '' ? '<span class="flash-time">' . h($at) . '</span>' : '')
+            . '<span class="flash-msg">' . (isset($icons[$type]) ? '<span class="flash-ico">' . $icons[$type] . '</span>' : '') . h($f['msg']) . '</span>'
+            . '<span class="flash-stale">' . h(t('predošlé uloženie · zmeny vo formulári ešte nie sú uložené')) . '</span>'
+            . '</div>';
     }
     $_SESSION['flash'] = [];
 }

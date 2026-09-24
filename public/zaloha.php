@@ -204,6 +204,7 @@ $human = function (int $b): string {
 };
 
 layout_header('zaloha.php');
+render_flash();
 ?>
 <fieldset class="panel">
   <legend><?= t('Ručná záloha databázy') ?></legend>

@@ -454,3 +454,4 @@ RADIUS chyba: %s
 PPPoE heslo vygenerované
 lokálny PPP secret zmazaný
 lokálny PPP secret neskontrolovaný (API: %s)
+predošlé uloženie · zmeny vo formulári ešte nie sú uložené

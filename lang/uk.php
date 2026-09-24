@@ -456,4 +456,5 @@ return [
     'PPPoE heslo vygenerované' => 'PPPoE пароль згенеровано',
     'lokálny PPP secret zmazaný' => 'локальний PPP secret видалено',
     'lokálny PPP secret neskontrolovaný (API: %s)' => 'локальний PPP secret не перевірено (API: %s)',
+    'predošlé uloženie · zmeny vo formulári ešte nie sú uložené' => 'попереднє збереження · зміни у формі ще не збережено',
 ];
