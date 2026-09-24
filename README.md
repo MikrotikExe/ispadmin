@@ -167,6 +167,30 @@ The **Backup** page (download, FTP upload, restore) works with SQLite only. On M
 sudo docker exec mt-ispadmin-db sh -c 'exec mariadb-dump -P 3307 -u"$MARIADB_USER" -p"$MARIADB_PASSWORD" --single-transaction "$MARIADB_DATABASE"' > ispadmin-$(date +%F).sql
 ```
 
+A daily backup with 14 days of rotation (the dump contains PPPoE passwords and RADIUS secrets, so it is root-only):
+
+```bash
+sudo tee /usr/local/bin/ispadmin-backup.sh >/dev/null <<'SH'
+#!/bin/bash
+set -euo pipefail
+D=/var/backups/ispadmin
+mkdir -p "$D"; chmod 700 "$D"
+F="$D/ispadmin-$(date +%F-%H%M).sql.gz"
+docker exec mt-ispadmin-db sh -c 'exec mariadb-dump -P 3307 -u"$MARIADB_USER" -p"$MARIADB_PASSWORD" --single-transaction "$MARIADB_DATABASE"' | gzip > "$F.tmp"
+mv "$F.tmp" "$F"; chmod 600 "$F"
+find "$D" -name 'ispadmin-*.sql.gz' -mtime +14 -delete
+SH
+sudo chmod 700 /usr/local/bin/ispadmin-backup.sh
+echo '15 3 * * * root /usr/local/bin/ispadmin-backup.sh' | sudo tee /etc/cron.d/ispadmin-backup
+```
+
+`pipefail` makes a failed dump fail the job instead of leaving a truncated but valid-looking file. Restore with the
+MariaDB client inside the container (MariaDB 11 dumps start with a "sandbox mode" line older `mysql` clients reject):
+
+```bash
+gunzip -c /var/backups/ispadmin/BACKUP.sql.gz | sudo docker exec -i mt-ispadmin-db sh -c 'exec mariadb -P 3307 -u"$MARIADB_USER" -p"$MARIADB_PASSWORD" "$MARIADB_DATABASE"'
+```
+
 ## MikroTik setup
 
 Enable the API on every router:
@@ -313,6 +337,15 @@ Sessions go to `radacct` (start, interim updates, stop; bytes including gigaword
 sudo docker exec -u www-data mt-ispadmin php /var/www/html/export_sessions.php --from=2026-09-01 --to=2026-10-01 > sessions.csv
 ```
 
+If a router crashes or reboots without sending Accounting-Stop, its sessions stay "online" in `radacct` forever.
+`close_stale_sessions.php` closes sessions without any update for 3 × the interim interval (15 min by default) with
+terminate cause `Stale-Session`. Run it from cron (it needs interim updates on the NAS, which ISPadmin requests via
+`Acct-Interim-Interval`):
+
+```bash
+echo '*/10 * * * * root docker exec -u www-data mt-ispadmin php /var/www/html/close_stale_sessions.php --apply >/dev/null' | sudo tee /etc/cron.d/ispadmin-stale-sessions
+```
+
 Full data-retention reporting (which records, how long, which format) is not implemented yet.
 
 ### Configuration
@@ -396,6 +429,7 @@ The import is idempotent — existing customers (same IP or PPPoE login) are ski
 | `update_geoip.php` | download country CIDR lists for geo-blocking (cron-friendly) |
 | `migrate_sqlite_to_mysql.php` | copy the SQLite database into MySQL (needed for PPPoE via RADIUS) |
 | `export_sessions.php` | export PPPoE sessions from RADIUS accounting as CSV / JSON lines |
+| `close_stale_sessions.php` | close RADIUS sessions whose NAS stopped reporting them (cron-friendly) |
 
 The data-changing ones run in preview mode until you add `--apply`.
 
