@@ -745,10 +745,23 @@ function radius_test_router(array $router): array
             if (isset($found['secret']) && $secret !== null && $found['secret'] !== $secret) {
                 $lines[] = [false, t('MikroTik: secret v /radius sa nezhoduje s ISPadmin.')];
             }
+            // pocitadla /radius monitor: dostava router od FreeRADIUS odpovede?
+            if (isset($found['.id'])) {
+                $mon = $api->comm('/radius/monitor', ['numbers' => $found['.id'], 'once' => '']);
+                $lines = array_merge($lines, radius_test_monitor_lines($mon['items'][0] ?? [], $nasIp));
+            }
         }
         $inc = $api->comm('/radius/incoming/print');
         $acc = (string)($inc['items'][0]['accept'] ?? '');
         $lines[] = [$acc === 'true', $acc === 'true' ? t('MikroTik: /radius incoming accept=yes (CoA).') : t('MikroTik: /radius incoming accept=no — CoA/odpojenie nebude fungovať.')];
+        if ($acc === 'true') {
+            $im = $api->comm('/radius/incoming/monitor', ['once' => '']);
+            $bad = (int)($im['items'][0]['bad-requests'] ?? 0);
+            if ($bad > 0) {
+                // null = upozornenie (pocitadla su od restartu routera, moze ist o staru chybu)
+                $lines[] = [null, t('MikroTik: %d CoA požiadaviek odmietnutých (bad-requests) — prišli z adresy, ktorá nie je v /radius (NAT medzi ISPadmin a routerom?) alebo s iným secretom. Počítadlo je od reštartu routera.', $bad)];
+            }
+        }
         $aaa = $api->comm('/ppp/aaa/print');
         $use = (string)($aaa['items'][0]['use-radius'] ?? '');
         $lines[] = [$use === 'true', $use === 'true' ? t('MikroTik: /ppp aaa use-radius=yes.') : t('MikroTik: /ppp aaa use-radius=no.')];
@@ -756,6 +769,41 @@ function radius_test_router(array $router): array
     }
 
     $allOk = true;
-    foreach ($lines as [$ok]) { $allOk = $allOk && $ok; }
+    foreach ($lines as [$ok]) { $allOk = $allOk && $ok !== false; }
     return ['ok' => $allOk, 'lines' => $lines];
+}
+
+/**
+ * Vyhodnotenie /radius monitor z routera. Pocitadla su od restartu routera.
+ *   - ziadne poziadavky: info (nikto sa este neprihlasoval)
+ *   - poziadavky bez jedinej odpovede: chyba - FreeRADIUS router nepozna (zla NAS IP, NAT, firewall)
+ *   - bad-replies: chyba - odpovede so zlym secretom
+ *   - timeouty prevysuju odpovede: upozornenie (mohlo ist o staru chybu)
+ * Vrati riadky [ok(bool|null), text]; null = upozornenie.
+ */
+function radius_test_monitor_lines(array $m, string $nasIp): array
+{
+    if (!$m) return [];
+    $req = (int)($m['requests'] ?? 0);
+    $acc = (int)($m['accepts'] ?? 0);
+    $rej = (int)($m['rejects'] ?? 0);
+    $tmo = (int)($m['timeouts'] ?? 0);
+    $bad = (int)($m['bad-replies'] ?? 0);
+    $out = [];
+    if ($req === 0) {
+        $out[] = [null, t('MikroTik: zatiaľ neposlal žiadnu RADIUS požiadavku (nikto sa neprihlasoval) — skús pripojiť PPPoE klienta a test zopakuj.')];
+        return $out;
+    }
+    if ($acc + $rej === 0) {
+        $out[] = [false, t('MikroTik: poslal %d RADIUS požiadaviek a nedostal ani jednu odpoveď (timeouts %d). FreeRADIUS ich neprijíma z NAS IP %s — skontroluj, z akej adresy router naozaj posiela (NAT?), NAS IP pri routeri, firewall a secret.', $req, $tmo, $nasIp)];
+    } else {
+        $out[] = [true, t('MikroTik: RADIUS odpovedá — požiadavky %d, prijaté %d, odmietnuté %d, timeouty %d (od reštartu routera).', $req, $acc, $rej, $tmo)];
+        if ($tmo > $acc + $rej) {
+            $out[] = [null, t('MikroTik: timeoutov je viac než odpovedí — RADIUS bol časť času nedostupný (NAT, firewall alebo výpadok). Ak je to stará chyba, počítadlá vynuluje reštart routera.')];
+        }
+    }
+    if ($bad > 0) {
+        $out[] = [false, t('MikroTik: %d odpovedí s neplatným podpisom (bad-replies) — secret v /radius sa pravdepodobne nezhoduje s ISPadmin.', $bad)];
+    }
+    return $out;
 }

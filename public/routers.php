@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $res = radius_test_router($r);
             foreach ($res['lines'] as [$ok, $line]) {
-                flash($ok ? 'ok' : 'err', t('RADIUS test %s: %s', $r['name'], $line));
+                flash($ok === null ? 'info' : ($ok ? 'ok' : 'err'), t('RADIUS test %s: %s', $r['name'], $line));
             }
         }
         header('Location: routers.php');
