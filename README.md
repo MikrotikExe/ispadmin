@@ -158,6 +158,15 @@ mysql -u ispadmin -p ispadmin < schema.sql
 
 3. Point the DocumentRoot at the `public/` directory — `config.php`, `lib/`, `lang/` and `data/` stay outside the web root. On classic Apache shared hosting the bundled root `.htaccess` handles this.
 
+With Docker you don't need your own MySQL server: the `radius` profile brings a MariaDB container
+(see [PPPoE via RADIUS](#pppoe-via-radius) → Setup), and `migrate_sqlite_to_mysql.php` moves existing data over.
+
+The **Backup** page (download, FTP upload, restore) works with SQLite only. On MySQL, back up with `mysqldump`, e.g. with the bundled container:
+
+```bash
+sudo docker exec mt-ispadmin-db sh -c 'exec mariadb-dump -P 3307 -u"$MARIADB_USER" -p"$MARIADB_PASSWORD" --single-transaction "$MARIADB_DATABASE"' > ispadmin-$(date +%F).sql
+```
+
 ## MikroTik setup
 
 Enable the API on every router:
@@ -168,7 +177,7 @@ Enable the API on every router:
 
 (port 8728; for SSL enable `api-ssl` on 8729 and turn on `use_ssl` for the router in the app)
 
-Create an API account with permissions for: `dhcp-server/lease`, `queue`, `firewall/address-list`, `ppp/secret`, `system`. You enter the API credentials in the **Routers** section of the UI — they are stored only in your own database.
+Create an API account with permissions for: `dhcp-server/lease`, `queue`, `firewall/address-list`, `ppp/secret`, `system` (routers using PPPoE via RADIUS additionally need read access to `/radius` and `/ppp aaa` for the RADIUS test). You enter the API credentials in the **Routers** section of the UI — they are stored only in your own database.
 
 To actually block non-payers, add a firewall rule on the router:
 
@@ -426,6 +435,7 @@ A default SVG logo is included in `public/assets/logo.svg` — feel free to modi
 - `config.php`, `lib/`, `lang/` and `data/` must not be reachable from the web — both Docker and the bundled `.htaccess` take care of this.
 - Router API credentials and customer data live only in your own database (`data/` is in `.gitignore`) — never commit them.
 - Run the app behind HTTPS (certbot + nginx proxy), ideally on an internal network / behind a VPN.
+- With PPPoE via RADIUS: never expose UDP 1812, 1813 or 3799 to the internet, bind FreeRADIUS to the management network (`RADIUS_BIND`), keep one secret per router, and protect the database — it holds the PPPoE passwords.
 
 ## Troubleshooting
 
@@ -450,6 +460,24 @@ is exactly right, then re-run certbot and choose *reinstall*.
 Check in order: the API service is enabled on the router (`/ip service print`), the host and
 port are reachable from the server (`nc -vz ROUTER_IP 8728`), the API account exists with the
 right permissions, and no firewall rule on the router blocks the API port.
+
+**RADIUS test: FreeRADIUS timeout**
+Check `sudo docker compose logs --tail 50 freeradius`. The container stops right away if `DB_PASS` or
+`RADIUS_LOCAL_SECRET` is missing in `.env`, or if the database is unreachable. `RADIUS_SERVER` must be
+the address FreeRADIUS listens on (`RADIUS_BIND`).
+
+**PPPoE customer on a RADIUS router cannot log in**
+The customer page shows the last login attempts. No attempt at all: the MikroTik doesn't reach FreeRADIUS
+(check `/radius` address, the host firewall, and that the router's source address equals *NAS IP*).
+Access-Reject: wrong password, customer terminated/rejected, or CHAP with `ISPADMIN_RADIUS_PW_STORAGE=nt`.
+A local `/ppp secret` with the same name also wins over RADIUS; saving the customer removes it.
+
+**CoA / disconnect fails ("timeout")**
+The router needs `/radius incoming set accept=yes`, UDP 3799 must be open from the ISPadmin host, and the
+packet must come from an address listed in the router's `/radius` (set `RADIUS_COA_SOURCE` if needed).
+
+**Session times differ from the change history**
+FreeRADIUS writes session times in the database's time zone. Set `TZ` in `.env` to the same zone as the app.
 
 **Timestamps are hours off**
 See [Time zone](#time-zone). The quickest fix is to set it explicitly on the Settings page.
