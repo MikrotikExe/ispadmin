@@ -287,6 +287,11 @@ Non-Docker installs: install FreeRADIUS 3.2 with `freeradius-mysql`, use the fil
   NAS-IP-Address the router reports, so they also reach routers behind NAT as long as UDP 3799 is forwarded like the API port.
   The reply is accepted even when it comes back from another address (an upstream router that masquerades the NAS
   subnet); it is authenticated by the shared secret, and the History entry shows `via <address>` in that case.
+- RouterOS accepts CoA / disconnect **only from a source address listed in its `/radius`**. If a router between
+  ISPadmin and the NAS source-NATs this traffic, the NAS counts it as `bad-requests` (`/radius incoming monitor`)
+  and nothing happens. Exempt ISPadmin → NAS traffic from NAT on that router, e.g.
+  `/ip firewall nat add chain=srcnat src-address=<ISPADMIN_IP> dst-address=<NAS_SUBNET> action=accept place-before=0`.
+  The same applies in the other direction for RADIUS: the source FreeRADIUS sees must be the router's *NAS IP*.
 - One session per login (`/ppp profile ... only-one=yes`) is left to your preference.
 - The API user additionally needs read access to `/radius` and `/ppp aaa` for the RADIUS test button,
   and `ppp/secret` remove rights for the cleanup of old local secrets.
@@ -483,6 +488,10 @@ A local `/ppp secret` with the same name also wins over RADIUS; saving the custo
 **CoA / disconnect fails ("timeout")**
 The router needs `/radius incoming set accept=yes`, UDP 3799 must be open from the ISPadmin host, and the
 packet must come from an address listed in the router's `/radius` (set `RADIUS_COA_SOURCE` if needed).
+Check `/radius incoming monitor` on the router: growing `bad-requests` means the packet arrives from another
+address — usually source NAT on a router in between (see [MikroTik (NAS) setup](#mikrotik-nas-setup)).
+`/radius monitor` with growing `timeouts` means the router's RADIUS requests get no answer: its source address
+is not the *NAS IP* stored in ISPadmin (check with `tcpdump -ni any udp port 1812` on the ISPadmin host).
 
 **Session times differ from the change history**
 FreeRADIUS writes session times in the database's time zone. Set `TZ` in `.env` to the same zone as the app.
