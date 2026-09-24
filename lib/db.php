@@ -67,6 +67,7 @@ function db(): PDO
     ensure_pppoe($pdo, $d['driver']);
     ensure_last_login($pdo, $d['driver']);
     ensure_settings($pdo, $d['driver']);
+    ensure_radius($pdo, $d['driver'], $cfg);
     // casova zona: env > nastavenie v DB > zona servera > UTC
     tz_apply();
     return $pdo;
@@ -92,6 +93,61 @@ function ensure_last_login(PDO $pdo, string $driver): void
             if (!$hasIp) $pdo->exec("ALTER TABLE users ADD COLUMN last_login_ip TEXT NULL");
         }
     } catch (Throwable $e) { /* ticho */ }
+}
+
+/**
+ * PPPoE cez RADIUS: stlpce na routeri (vzdy, su neskodne) + standardne FreeRADIUS tabulky
+ * (len MySQL a len ked je RADIUS zapnuty v config.php - FreeRADIUS cita tu istu DB).
+ */
+function ensure_radius(PDO $pdo, string $driver, array $cfg): void
+{
+    $add = [
+        'pppoe_radius'  => ['mysql' => 'TINYINT NOT NULL DEFAULT 0', 'sqlite' => 'INTEGER NOT NULL DEFAULT 0'],
+        'radius_secret' => ['mysql' => "VARCHAR(64) NOT NULL DEFAULT ''", 'sqlite' => "TEXT NOT NULL DEFAULT ''"],
+        // adresa, z ktorej MikroTik posiela RADIUS (src-address) - ak sa lisi od API hostu
+        'radius_nas_ip' => ['mysql' => "VARCHAR(64) NOT NULL DEFAULT ''", 'sqlite' => "TEXT NOT NULL DEFAULT ''"],
+    ];
+    try {
+        foreach ($add as $col => $types) {
+            if ($driver === 'mysql') {
+                $has = $pdo->query("SHOW COLUMNS FROM routers LIKE '$col'")->fetch();
+                if (!$has) $pdo->exec("ALTER TABLE routers ADD COLUMN $col {$types['mysql']}");
+            } else {
+                $info = $pdo->query('PRAGMA table_info(routers)')->fetchAll();
+                $has = false;
+                foreach ($info as $c) { if (($c['name'] ?? '') === $col) { $has = true; break; } }
+                if (!$has) $pdo->exec("ALTER TABLE routers ADD COLUMN $col {$types['sqlite']}");
+            }
+        }
+    } catch (Throwable $e) { /* ticho */ }
+
+    // change_log.action bol v schema.sql VARCHAR(64), no zaznamy z MikroTiku su dlhsie
+    // (na MySQL to koncilo chybou "Data too long"). Len rozsirenie typu, data ostanu.
+    if ($driver === 'mysql') {
+        try {
+            $col = $pdo->query("SHOW COLUMNS FROM change_log LIKE 'action'")->fetch();
+            if ($col && stripos((string)$col['Type'], 'varchar') === 0) {
+                $pdo->exec('ALTER TABLE change_log MODIFY action TEXT NULL');
+            }
+        } catch (Throwable $e) { /* ticho */ }
+    }
+
+    if ($driver !== 'mysql' || empty($cfg['radius']['enabled'])) {
+        return;
+    }
+    try {
+        if ($pdo->query("SHOW TABLES LIKE 'radcheck'")->fetch() && $pdo->query("SHOW TABLES LIKE 'nas'")->fetch()
+            && $pdo->query("SHOW TABLES LIKE 'radacct'")->fetch()) {
+            return;
+        }
+        $sql = (string)file_get_contents(__DIR__ . '/radius_schema.sql');
+        $sql = preg_replace('/^--.*$/m', '', $sql);
+        foreach (array_filter(array_map('trim', explode(';', $sql))) as $stmt) {
+            $pdo->exec($stmt);   // vsetko su CREATE TABLE IF NOT EXISTS
+        }
+    } catch (Throwable $e) {
+        error_log('ispadmin: RADIUS schema migration failed: ' . $e->getMessage());
+    }
 }
 
 /** Doplni stlpec pre PPPoE pripojenie na zakaznika. */

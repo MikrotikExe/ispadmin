@@ -48,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $res = mt_apply_customer($id);
             }
             $pdo->prepare('DELETE FROM customers WHERE id = ?')->execute([$id]);
+            radius_forget_customer($cust); // RADIUS riadky prec (ak login nepouziva iny zakaznik)
             log_change($id, (string)$cust['contract_no'], (string)$user, 'deleted');
             if ($hadRouter && !$res['ok']) {
                 flash('err', t('Zákazník zmazaný, ale na MikroTiku sa nepodarilo zrušiť: %s', $res['msg']));
@@ -104,6 +105,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $isNew = ($id === 0);
 
+    // predosly PPPoE login - pri premenovani treba zmazat stare RADIUS riadky a odpojit relaciu
+    $oldPppoeUser = null;
+    if ($id) {
+        $oldPppoeUser = (string)$pdo->query('SELECT pppoe_user FROM customers WHERE id = ' . $id)->fetchColumn();
+    }
+
+    // PPPoE cez RADIUS: login je globalny (nie per router), musi byt vyplneny a unikatny
+    if ($data['conn_type'] === 'pppoe' && !empty($data['router_id']) && radius_available()) {
+        $rt = $pdo->query('SELECT * FROM routers WHERE id = ' . (int)$data['router_id'])->fetch() ?: null;
+        if (radius_router_on($rt)) {
+            if ($data['pppoe_user'] === '') {
+                flash('err', t('PPPoE login je povinný (router používa RADIUS).'));
+                header('Location: customer.php' . ($id ? '?id=' . $id : ''));
+                exit;
+            }
+            if (radius_username_taken($data['pppoe_user'], $id)) {
+                flash('err', t('PPPoE login %s už používa iný zákazník (RADIUS login musí byť unikátny).', $data['pppoe_user']));
+                header('Location: customer.php' . ($id ? '?id=' . $id : ''));
+                exit;
+            }
+        }
+    }
+
     // poistka: rovnaka IP na tom istom MikroTiku nesmie patrit dvom zakaznikom
     if (!empty($data['router_id']) && $data['ip'] !== '') {
         $dup = $pdo->prepare(
@@ -144,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         log_change($id, $data['contract_no'], (string)$user, $pref . ' (no MikroTik)');
         flash('info', t('Uložené. (Bez priradenej MikroTik siete sa na zariadenie nič neaplikovalo.)'));
     } else {
-        $res = mt_apply_customer($id);
+        $res = mt_apply_customer($id, $oldPppoeUser);
         if ($res['ok']) {
             log_change($id, $data['contract_no'], (string)$user, $pref . ' — ' . ($res['log'] ?? $res['msg']));
             flash('ok', t('Uložené a aplikované na MikroTik: %s', $res['msg']));
@@ -178,6 +202,33 @@ if ($id) {
 $routers  = $pdo->query('SELECT id, name FROM routers WHERE active = 1 ORDER BY name')->fetchAll();
 $programs = $pdo->query('SELECT id, name, ul_user, dl_user FROM programs WHERE active = 1 ORDER BY id')->fetchAll();
 $networks = $pdo->query('SELECT id, router_id, name, subnet FROM networks WHERE active = 1 ORDER BY router_id, name')->fetchAll();
+
+// PPPoE cez RADIUS: relacie (radacct) a posledne pokusy o prihlasenie (radpostauth)
+$radiusRouter = null;
+$sessions = [];
+$authTries = [];
+if ($id && ($c['conn_type'] ?? '') === 'pppoe' && !empty($c['router_id']) && radius_available()) {
+    $rt = $pdo->query('SELECT * FROM routers WHERE id = ' . (int)$c['router_id'])->fetch() ?: null;
+    if (radius_router_on($rt)) {
+        $radiusRouter = $rt;
+        if (!empty(radius_cfg()['accounting'])) {
+            $sessions = radius_sessions((string)$c['pppoe_user'], 20);
+        }
+        $authTries = radius_postauth((string)$c['pppoe_user'], 5);
+    }
+}
+$fmtBytes = static function ($b): string {
+    $b = (float)$b;
+    if ($b >= 1073741824) return round($b / 1073741824, 2) . ' GB';
+    if ($b >= 1048576) return round($b / 1048576, 1) . ' MB';
+    if ($b >= 1024) return round($b / 1024) . ' kB';
+    return (int)$b . ' B';
+};
+$fmtDur = static function ($s): string {
+    $s = (int)$s;
+    $d = intdiv($s, 86400); $s %= 86400;
+    return ($d ? $d . 'd ' : '') . sprintf('%02d:%02d:%02d', intdiv($s, 3600), intdiv($s % 3600, 60), $s % 60);
+};
 
 $historia = [];
 if ($id) {
@@ -249,7 +300,10 @@ function sel($a, $b): string { return (string)$a === (string)$b ? ' selected' : 
       </div>
       <div class="cell pppoe-only">
         <label><?= t('PPPoE heslo') ?></label>
-        <input name="pppoe_pass" value="<?= h($c['pppoe_pass'] ?? '') ?>" placeholder="<?= h(t('heslo')) ?>">
+        <div style="display:flex;gap:6px">
+          <input name="pppoe_pass" id="pppoePass" value="<?= h($c['pppoe_pass'] ?? '') ?>" placeholder="<?= h(t('heslo')) ?>">
+          <button type="button" class="btn sm gray" onclick="genPppoe()"><?= t('Generovať') ?></button>
+        </div>
       </div>
       <div class="cell pppoe-only">
         <label><?= t('PPPoE profil') ?> <span class="muted"><?= t('(rýchlosť)') ?></span></label>
@@ -341,8 +395,42 @@ function sel($a, $b): string { return (string)$a === (string)$b ? ' selected' : 
     <li><?= t('<b>Ukončená zmluva</b> — DHCP lease aj Simple Queue z MikroTiku <b>odstráni</b> a IP pridá do address-listu výpovedí (vypovede), takže ostane blokovaná aj bez fronty.') ?></li>
   </ul>
   <p><?= t('Zmena programu prepíše rýchlosť (max-limit) na fronte. Zmena IP/MAC sa premietne do lease aj fronty. Ak má router zapnuté „Spravovať ARP", appka pri Pripojený/Dočasne/Neplatič pridá aj statický ARP záznam (IP+MAC) a pri Ukončenej ho zmaže — pre reply-only siete je to nutné, inak zákazník nepôjde (treba vyplnené MAC).') ?></p>
+  <?php if (radius_available()): ?>
+  <p><?= t('<b>PPPoE cez RADIUS</b> (router so zapnutým RADIUS) — na MikroTik sa nič nezapisuje: appka upraví záznamy vo FreeRADIUS (heslo, statická IP, rýchlosť programu ako Mikrotik-Rate-Limit, pri Dočasne/Neplatič address-list stavu, pri Ukončenej zamietnutie). Bežiacu reláciu zmení cez CoA alebo ju odpojí, zákazník sa hneď znova prihlási s novým stavom. Profil sa posiela ako Mikrotik-Group.') ?></p>
+  <?php endif; ?>
   <p class="applywarn-imp"><?= t('Existujúce fronty appka prevezme podľa target IP (aj keď majú na MikroTiku „ľudský“ názov) — neprepíše názov a nevytvorí duplikát, len upraví rýchlosť/stav. To isté platí pre DHCP lease (podľa MAC, inak podľa IP). Čo sa stalo, nájdeš nižšie v Histórii.') ?></p>
 </div>
+<?php if ($radiusRouter): ?>
+<div class="panel-title"><?= t('PPPoE relácie (RADIUS)') ?></div>
+<div class="tablewrap">
+<table class="compact hist">
+  <tr><th><?= t('Začiatok') ?></th><th><?= t('Koniec') ?></th><th><?= t('Trvanie') ?></th><th>IP</th><th>NAS</th>
+      <th><?= t('Up') ?></th><th><?= t('Down') ?></th><th><?= t('Dôvod ukončenia') ?></th></tr>
+  <?php if (!$sessions): ?>
+    <tr><td colspan="8" class="muted"><?= t('Zatiaľ žiadne relácie.') ?></td></tr>
+  <?php endif; ?>
+  <?php foreach ($sessions as $s): ?>
+  <tr>
+    <td class="nowrap"><?= h((string)$s['acctstarttime']) ?></td>
+    <td class="nowrap"><?= $s['acctstoptime'] ? h((string)$s['acctstoptime']) : '<span class="pill">' . t('online') . '</span>' ?></td>
+    <td class="nowrap"><?= h($fmtDur($s['acctsessiontime'])) ?></td>
+    <td><?= h((string)$s['framedipaddress']) ?></td>
+    <td><?= h((string)$s['nasipaddress']) ?></td>
+    <td class="nowrap"><?= h($fmtBytes($s['acctinputoctets'])) ?></td>
+    <td class="nowrap"><?= h($fmtBytes($s['acctoutputoctets'])) ?></td>
+    <td><?= h((string)$s['acctterminatecause']) ?></td>
+  </tr>
+  <?php endforeach; ?>
+</table>
+</div>
+<?php if ($authTries): ?>
+<p class="hint"><?= t('Posledné pokusy o prihlásenie:') ?>
+  <?php foreach ($authTries as $a): ?>
+    <span class="nowrap"><?= h(substr((string)$a['authdate'], 0, 19)) ?> — <?= h((string)$a['reply']) ?></span>;
+  <?php endforeach; ?>
+</p>
+<?php endif; ?>
+<?php endif; ?>
 <?php if ($id): ?>
 <div class="panel-title"><?= t('História') ?></div>
 <div class="tablewrap">
@@ -401,6 +489,12 @@ function setIpPrefix(){
   var parts=cur.split('.');
   if(parts.length===4 && parts[3]!=='') last=parts[3];
   ip.value=pfx+last;
+}
+// PPPoE heslo: 14 znakov bez zamenitelnych a specialnych znakov (niektore CPE ich kazia)
+function genPppoe(){
+  var A="abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789", p="";
+  for(var i=0;i<14;i++) p+=A[_rnd(A.length)];
+  var el=document.getElementById('pppoePass'); if(el) el.value=p;
 }
 // prepinanie PPPoE poli podla typu pripojenia
 function toggleConn(){

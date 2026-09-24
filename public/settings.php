@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../lib/layout.php';
+require_once __DIR__ . '/../lib/radius.php';
 require_admin();
 $user = current_user();
 
@@ -96,6 +97,7 @@ render_flash();
 <table>
   <tr><th><?= t('Verzia') ?></th><td><?= h($cfg['version']) ?></td></tr>
   <tr><th><?= t('Databáza') ?></th><td><?= h(db()->getAttribute(PDO::ATTR_DRIVER_NAME)) ?></td></tr>
+  <tr><th><?= t('PPPoE cez RADIUS') ?></th><td><?= radius_available() ? t('zapnutý') : (!empty($cfg['radius']['enabled']) ? t('zapnutý v konfigurácii, ale vyžaduje MySQL') : t('vypnutý')) ?></td></tr>
   <tr><th>PHP</th><td><?= h(PHP_VERSION) ?></td></tr>
   <tr><th><?= t('Zóna servera') ?></th><td><?= h($serverTz ?: t('nezistená')) ?></td></tr>
 </table>

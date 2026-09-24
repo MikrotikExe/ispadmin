@@ -17,6 +17,7 @@ Lightweight web-based customer management for small ISPs, built on top of the **
 - **10 languages** — language picker on the login screen and in the header (Slovak, Czech, English, German, Polish, Hungarian, Romanian, Ukrainian, Latvian, Russian)
 - Light / dark theme, responsive UI
 - Time zone detected from the server automatically, overridable from the Settings page
+- **PPPoE via RADIUS (optional)** — FreeRADIUS container sharing the app's MySQL database: PAP/CHAP/MS-CHAPv2, static IP and plan speed via RADIUS, status enforcement on live sessions (CoA / disconnect), session accounting per customer
 - **DHCP Option 82 support** — bind a customer's lease to the physical circuit (Agent Circuit ID) instead of the MAC address, so swapping a modem needs no reconfiguration
 
 ## Screenshots
@@ -187,7 +188,120 @@ The app maintains the address lists; the drop rules above are what actually bloc
 | Non-payer | same as temporary, different address-list |
 | Contract terminated | deletes lease + queue + address-list entry |
 
-PPPoE customers are managed through `/ppp/secret` (login, password, profile) instead of lease/queue.
+PPPoE customers are managed through `/ppp/secret` (login, password, profile) instead of lease/queue —
+or, on routers switched to [PPPoE via RADIUS](#pppoe-via-radius), through FreeRADIUS.
+
+## PPPoE via RADIUS
+
+Optional. Off by default, and even when enabled it only applies to routers you switch over one
+by one — every other router keeps the classic `/ppp secret` provisioning described above.
+
+### How it works
+
+```
+PPPoE CPE ──PPPoE──> MikroTik (NAS) ──RADIUS 1812/1813──> FreeRADIUS ──SQL──> MySQL <── ISPadmin (web)
+                          ^                                                         |
+                          └──────────────── CoA / Disconnect, UDP 3799 ─────────────┘
+```
+
+- **FreeRADIUS 3.2** runs in its own container (`docker/freeradius/`) with `rlm_sql`, reading the
+  **same MySQL database** as ISPadmin. ISPadmin is not a RADIUS server; it manages the standard
+  FreeRADIUS tables (`radcheck`, `radreply`, `nas`) and reads `radacct`.
+- Saving a router with *PPPoE via RADIUS = yes* writes its row to the `nas` table (NAS IP +
+  its own shared secret). FreeRADIUS looks NAS entries up on demand, so no restart is needed.
+- Saving a PPPoE customer on such a router writes their RADIUS rows instead of touching the router:
+
+| Status | RADIUS result | Attributes |
+|---|---|---|
+| Connected | Access-Accept | `Framed-IP-Address` (the customer's IP), `Mikrotik-Rate-Limit` (plan, or real speed), `Mikrotik-Group` (PPPoE profile field, if set) |
+| Temporarily disconnected / Non-payer | Access-Accept, restricted (default) — or Access-Reject with `ISPADMIN_RADIUS_MODE=reject` | as above plus `Mikrotik-Address-List` = the status list (`suspended` / `unpaid`), so the firewall rules you already have keep working; optional throttle and `Filter-Id` |
+| Contract terminated | Access-Reject | — |
+
+- A change on a customer who is **online** is applied immediately: a plan change sends a CoA with the new
+  `Mikrotik-Rate-Limit`; a status, IP or profile change sends a Disconnect (PoD) and the CPE redials
+  within seconds with the new profile. (`ISPADMIN_RADIUS_COA_STATUS=coa` tries CoA for status changes too.)
+- No Simple Queue, DHCP lease or ARP entry is created for RADIUS PPPoE customers, and DHCP customers never
+  get RADIUS rows. If a local `/ppp secret` with the same name exists on the router it is removed, because
+  RouterOS would prefer it over RADIUS and status changes would silently stop working.
+- The customer page shows the PPPoE sessions (start/stop, IP, bytes up/down, duration, terminate cause) and the
+  last login attempts.
+- PPPoE logins must be unique across RADIUS routers (RADIUS has no notion of "which router").
+  An empty password is replaced by a generated 14-character one.
+
+### Setup (Docker)
+
+1. **Copy `.env.example` to `.env`** and fill in `DB_PASS`, `RADIUS_LOCAL_SECRET` (long random strings),
+   `RADIUS_BIND` (the management address of this host the MikroTiks can reach) and `RADIUS_ADDRESS`
+   (the same address, shown in the generated router config).
+2. **`sudo docker compose up -d --build`** — with `COMPOSE_PROFILES=radius` from `.env` this starts
+   `ispadmin` + `db` (MariaDB on `127.0.0.1:3307`) + `freeradius`. On first start the database is created
+   with the app schema and the FreeRADIUS schema.
+3. **Existing SQLite data?** Copy it over once (the SQLite file is only read):
+
+   ```bash
+   sudo docker exec -u www-data -it mt-ispadmin php /var/www/html/migrate_sqlite_to_mysql.php
+   sudo docker exec -u www-data -it mt-ispadmin php /var/www/html/migrate_sqlite_to_mysql.php --apply
+   ```
+
+   Without this step the app starts on the new, empty MySQL database (login `admin` / `changeme`).
+4. In **Routers**, edit a router, set *PPPoE via RADIUS = yes* and save. A strong secret is generated if you
+   leave it empty. Fill *NAS IP* only if the router sends RADIUS from a different address than its API host.
+5. Paste the **MikroTik configuration** shown under the router form (see below), then press **RADIUS test**.
+6. Re-save the PPPoE customers of that router (or change them as needed) to create their RADIUS rows.
+
+Non-Docker installs: install FreeRADIUS 3.2 with `freeradius-mysql`, use the files in `docker/freeradius/` as the
+`sql` module, virtual servers and `clients.conf`, and set the same environment variables for PHP.
+
+### MikroTik (NAS) setup
+
+```
+/radius add service=ppp address=<ISPADMIN_RADIUS_IP> secret="<ROUTER_RADIUS_SECRET>" authentication-port=1812 accounting-port=1813
+/radius incoming set accept=yes port=3799
+/ppp aaa set use-radius=yes accounting=yes interim-update=5m
+/ppp profile add name=ispadmin-pppoe use-radius=yes
+/interface pppoe-server server add service-name=pppoe interface=<CUSTOMER_IFACE_OR_VLAN> default-profile=ispadmin-pppoe authentication=pap,chap,mschap2 disabled=no
+```
+
+- `<ISPADMIN_RADIUS_IP>` is the address the **FreeRADIUS container listens on** (`RADIUS_BIND`), not necessarily
+  the address of the web UI. ISPadmin does not listen on 1812/1813 itself.
+- `<ROUTER_RADIUS_SECRET>` must match the router's secret in ISPadmin — the Routers page prints this block
+  with the real secret filled in.
+- CoA / disconnect packets come from the ISPadmin host. RouterOS only accepts them from an address that is in its
+  `/radius` list, so the host must send from `<ISPADMIN_RADIUS_IP>` (set `RADIUS_COA_SOURCE` if it has several).
+- If the router sends RADIUS from another address than its API host, add `src-address=` and put that address into
+  *NAS IP* in ISPadmin.
+- One session per login (`/ppp profile ... only-one=yes`) is left to your preference.
+- The API user additionally needs read access to `/radius` and `/ppp aaa` for the RADIUS test button,
+  and `ppp/secret` remove rights for the cleanup of old local secrets.
+
+### Passwords and security
+
+- `ISPADMIN_RADIUS_PW_STORAGE=cleartext` (default) stores `Cleartext-Password`: PAP, CHAP and MS-CHAPv2 all work.
+  `nt` stores the NT hash instead: PAP and MS-CHAPv2 work, **CHAP does not** (it needs the cleartext by design).
+  Either way the customer record itself keeps the password so it can be shown in the form — protect the database.
+- **Never expose 1812, 1813 or 3799 to the internet.** Bind FreeRADIUS to the management network
+  (`RADIUS_BIND`) and restrict it with the host firewall. FreeRADIUS answers only addresses present in the `nas` table.
+- Every router gets its own secret (minimum 16 characters); the app refuses to reuse one.
+
+### Accounting and export
+
+Sessions go to `radacct` (start, interim updates, stop; bytes including gigawords). For reporting there is an export hook:
+
+```bash
+sudo docker exec -u www-data mt-ispadmin php /var/www/html/export_sessions.php --from=2026-09-01 --to=2026-10-01 > sessions.csv
+```
+
+Full data-retention reporting (which records, how long, which format) is not implemented yet.
+
+### Configuration
+
+All options are in the `radius` block of `config.php`, most of them settable from `.env`:
+`ISPADMIN_RADIUS` (on/off), `ISPADMIN_RADIUS_MODE` (`restrict` / `reject`), `ISPADMIN_RADIUS_RESTRICT_RATE`,
+`ISPADMIN_RADIUS_FILTER_ID`, `ISPADMIN_RADIUS_PW_STORAGE`, `ISPADMIN_RADIUS_POOL`, `ISPADMIN_RADIUS_INTERIM`,
+`ISPADMIN_RADIUS_COA_STATUS`, `RADIUS_COA_SOURCE`. The Mikrotik-Rate-Limit format is `rate_limit_template`
+(`{ul}/{dl}` by default; with plan aggregation use `{ul}/{dl} 0/0 0/0 0/0 8 {ul_at}/{dl_at}`).
+
+Turning `ISPADMIN_RADIUS` off again makes RADIUS routers fall back to `/ppp secret` provisioning on the next save.
 
 ## Circuit ID (DHCP Option 82)
 
@@ -258,8 +372,10 @@ The import is idempotent — existing customers (same IP or PPPoE login) are ski
 | `set_siet.php` | bulk-set the "Network" field on customers |
 | `fix_encoding.php` | fix diacritics (CP1250 escapes from RouterOS) in already imported data |
 | `update_geoip.php` | download country CIDR lists for geo-blocking (cron-friendly) |
+| `migrate_sqlite_to_mysql.php` | copy the SQLite database into MySQL (needed for PPPoE via RADIUS) |
+| `export_sessions.php` | export PPPoE sessions from RADIUS accounting as CSV / JSON lines |
 
-All of them run in preview mode until you add `--apply`.
+The data-changing ones run in preview mode until you add `--apply`.
 
 **Run them as the web user.** Inside Docker the app runs as `www-data`, and the SQLite
 database has to stay writable by it. If you run a script as root, the database file ends up

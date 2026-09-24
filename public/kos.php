@@ -32,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $res = mt_apply_customer($id);
         }
         $pdo->prepare('DELETE FROM customers WHERE id = ?')->execute([$id]);
+        radius_forget_customer($cust);
         log_change($id, (string)$cust['contract_no'], (string)$user, 'permanently deleted');
         flash('ok', t('Zákazník trvalo zmazaný.'));
     }

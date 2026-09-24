@@ -1,0 +1,55 @@
+# ISPadmin — PPPoE authentication + accounting for MikroTik NAS.
+# Listens only on RADIUS_BIND (set it to the management / NAS-facing address).
+server ispadmin {
+	listen {
+		type = auth
+		ipaddr = $ENV{RADIUS_BIND}
+		port = 1812
+	}
+	listen {
+		type = acct
+		ipaddr = $ENV{RADIUS_BIND}
+		port = 1813
+	}
+
+	authorize {
+		filter_username
+		preprocess
+		chap
+		mschap
+		# radcheck: Cleartext-Password / NT-Password, or Auth-Type := Reject (terminated)
+		# radreply: Framed-IP-Address, Mikrotik-Rate-Limit, Mikrotik-Address-List, ...
+		sql
+		pap
+	}
+
+	authenticate {
+		Auth-Type PAP {
+			pap
+		}
+		Auth-Type CHAP {
+			chap
+		}
+		Auth-Type MS-CHAP {
+			mschap
+		}
+	}
+
+	preacct {
+		preprocess
+		acct_unique
+	}
+
+	accounting {
+		sql
+		attr_filter.accounting_response
+	}
+
+	post-auth {
+		sql
+		Post-Auth-Type REJECT {
+			sql
+			attr_filter.access_reject
+		}
+	}
+}

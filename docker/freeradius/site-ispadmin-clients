@@ -1,0 +1,18 @@
+# Dynamic RADIUS clients: a packet from an unknown address is accepted only if that
+# address is a nasname in the `nas` table (written by ISPadmin when a router is saved
+# with "PPPoE via RADIUS"). The secret is read from the same row. Cached for 60 s,
+# so a changed secret or a new router takes effect within a minute, no restart needed.
+server ispadmin_clients {
+	authorize {
+		if ("%{sql:SELECT nasname FROM nas WHERE nasname = '%{Packet-Src-IP-Address}' LIMIT 1}") {
+			update control {
+				&FreeRADIUS-Client-IP-Address = "%{Packet-Src-IP-Address}"
+				&FreeRADIUS-Client-Require-MA = no
+				&FreeRADIUS-Client-Secret = "%{sql:SELECT secret FROM nas WHERE nasname = '%{Packet-Src-IP-Address}' LIMIT 1}"
+				&FreeRADIUS-Client-Shortname = "%{sql:SELECT shortname FROM nas WHERE nasname = '%{Packet-Src-IP-Address}' LIMIT 1}"
+				&FreeRADIUS-Client-NAS-Type = "other"
+			}
+		}
+		ok
+	}
+}

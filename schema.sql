@@ -78,7 +78,7 @@ CREATE TABLE change_log (
   customer_id INT NULL,
   contract_no VARCHAR(64) NULL,
   who VARCHAR(64) NULL,
-  action VARCHAR(64) NULL,
+  action TEXT NULL,
   created_at DATETIME NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

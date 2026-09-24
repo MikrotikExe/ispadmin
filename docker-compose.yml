@@ -16,9 +16,86 @@ services:
       - ISPADMIN_GEO_COUNTRIES=SK
       # Tvoja pevna verejna IP ako poistka (prejde vzdy). Viac oddel ciarkou.
       # - ISPADMIN_GEO_ALLOW_IPS=1.2.3.4
+      # PPPoE cez RADIUS (volitelne, viz .env.example a README). Bez .env sa nic nemeni:
+      # premenne bez hodnoty sa do kontajnera posielaju len ak su nastavene.
+      - DB_DRIVER
+      - DB_HOST
+      - DB_PORT
+      - DB_NAME
+      - DB_USER
+      - DB_PASS
+      - ISPADMIN_RADIUS
+      - ISPADMIN_RADIUS_MODE
+      - ISPADMIN_RADIUS_PW_STORAGE
+      - ISPADMIN_RADIUS_RESTRICT_RATE
+      - ISPADMIN_RADIUS_FILTER_ID
+      - ISPADMIN_RADIUS_POOL
+      - ISPADMIN_RADIUS_INTERIM
+      - ISPADMIN_RADIUS_COA_STATUS
+      - RADIUS_ADDRESS
+      - RADIUS_SERVER
+      - RADIUS_LOCAL_SECRET
+      - RADIUS_COA_SOURCE
     volumes:
       - ./:/var/www/html
       - ispadmin-data:/data
 
+  # --- PPPoE cez RADIUS: spusta sa len s profilom "radius" (COMPOSE_PROFILES=radius v .env) ---
+
+  # MariaDB pre ISPadmin + FreeRADIUS (spolocna databaza). Pocuva len na 127.0.0.1.
+  # Pri prvom starte (prazdny volume) sa nahra schema appky aj standardna FreeRADIUS schema.
+  db:
+    profiles: ["radius"]
+    image: mariadb:11.4
+    container_name: mt-ispadmin-db
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - --bind-address=127.0.0.1
+      - --port=${DB_PORT:-3307}
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      - MARIADB_DATABASE=${DB_NAME:-ispadmin}
+      - MARIADB_USER=${DB_USER:-ispadmin}
+      - MARIADB_PASSWORD=${DB_PASS:-}
+      - MARIADB_RANDOM_ROOT_PASSWORD=1
+      - TZ=${TZ:-UTC}
+    volumes:
+      - ispadmin-mysql:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-ispadmin.sql:ro
+      - ./lib/radius_schema.sql:/docker-entrypoint-initdb.d/02-freeradius.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # FreeRADIUS 3.2 (rlm_sql nad tou istou DB). Siet hostitela: MikroTik vidi zdrojovu IP
+  # servera a CoA z ISPadmin odchadza z tej istej adresy, ktoru ma MikroTik v /radius.
+  freeradius:
+    profiles: ["radius"]
+    build:
+      context: .
+      dockerfile: docker/freeradius/Dockerfile
+    image: mt-ispadmin-freeradius
+    container_name: mt-ispadmin-freeradius
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - DB_HOST=127.0.0.1
+      - DB_PORT=${DB_PORT:-3307}
+      - DB_NAME=${DB_NAME:-ispadmin}
+      - DB_USER=${DB_USER:-ispadmin}
+      - DB_PASS=${DB_PASS:-}
+      # Adresa, na ktorej FreeRADIUS pocuva (1812/1813). NIKDY nie verejna - len manazmentova sie.
+      - RADIUS_BIND=${RADIUS_BIND:-127.0.0.1}
+      - RADIUS_LOCAL_SECRET=${RADIUS_LOCAL_SECRET:-}
+      - TZ=${TZ:-UTC}
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   ispadmin-data:
+  ispadmin-mysql:

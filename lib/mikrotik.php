@@ -2,6 +2,7 @@
 require_once __DIR__ . '/RouterosApi.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/lang.php';
+require_once __DIR__ . '/radius.php';
 
 /** kbit (ulozene ako Mbps*1024) -> MikroTik max-limit string: cele Mbps ako "15M", inak "Nk". */
 function mt_rate(int $kbit): string
@@ -120,7 +121,7 @@ function mt_find_id(array $items, string $attr, string $value): ?string
  * docasne/neplatic -> lease ostava, queue disabled, IP do block listu
  * ukoncena   -> zmaze lease + queue + block list
  */
-function mt_apply_customer(int $customerId): array
+function mt_apply_customer(int $customerId, ?string $oldPppoeUser = null): array
 {
     $cfg = require __DIR__ . '/../config.php';
     $pdo = db();
@@ -157,6 +158,22 @@ function mt_apply_customer(int $customerId): array
         $parentQueue = trim($router['parent_queue'] ?? '');
     }
 
+    // --- PPPoE cez RADIUS: router sa nekonfiguruje, spravuju sa riadky radcheck/radreply ---
+    $isPppoe = ($c['conn_type'] ?? 'dhcp') === 'pppoe';
+    if ($isPppoe && radius_router_on($router)) {
+        return mt_apply_customer_radius($c, $router, $program, $oldPppoeUser);
+    }
+    // Zakaznik uz nie je RADIUS-PPPoE (zmena na DHCP, alebo router prepnuty spat na /ppp secret):
+    // zmaz jeho stare RADIUS riadky a odpoj pripadnu RADIUS relaciu. Na router to nesiaha.
+    $radiusLog = [];
+    if (radius_available()) {
+        foreach (array_unique(array_filter([trim((string)($c['pppoe_user'] ?? '')), trim((string)$oldPppoeUser)])) as $u) {
+            if (!radius_username_taken($u, (int)$c['id'])) {
+                $radiusLog = array_merge($radiusLog, radius_remove_customer($u));
+            }
+        }
+    }
+
     // realna rychlost (override) - ma prednost pred programom (kbit)
     $realUl = (int)($c['real_ul_kbit'] ?? 0);
     $realDl = (int)($c['real_dl_kbit'] ?? 0);
@@ -173,7 +190,14 @@ function mt_apply_customer(int $customerId): array
 
     [$api, $err] = mt_connect($router);
     if (!$api) {
-        return ['ok' => false, 'msg' => t('sieť %s: %s', $router['name'], $err)];
+        $fail = ['ok' => false, 'msg' => t('sieť %s: %s', $router['name'], $err)];
+        if ($radiusLog) {
+            // RADIUS upratanie (len DB) prebehlo aj bez spojenia s routerom - nech je to vidno v historii
+            $r = mt_log_result(false, $router, $radiusLog);
+            $fail['msg'] .= ' (' . $r['msg'] . ')';
+            $fail['log'] = t_in('en', 'sieť %s: %s', $router['name'], $err) . ' (' . $r['log'] . ')';
+        }
+        return $fail;
     }
 
     $name    = $c['contract_no'] !== '' ? $c['contract_no'] : ('cust-' . $c['id']);
@@ -187,7 +211,7 @@ function mt_apply_customer(int $customerId): array
     $blockLists = $cfg['block_lists'] ?? ['docasne' => 'docasne_odpojeni', 'neplatic' => 'neplatici', 'ukoncena' => 'vypovede'];
     $blockLimit = $cfg['block_limit'] ?? '1k/1k';
     $status = $c['status'];
-    $log = [];
+    $log = $radiusLog;
 
     try {
         // --- PPPoE pripojenie: spravuje sa /ppp secret (login/heslo/profil), nie lease/queue/ARP ---
@@ -408,6 +432,66 @@ function mt_apply_customer(int $customerId): array
         $api->disconnect();
         return ['ok' => false, 'msg' => $router['name'] . ': ' . $e->getMessage(), 'log' => $router['name'] . ': ' . $e->getMessage()];
     }
+}
+
+/** Sformatuje zoznam udalosti do spravy pre UI (aktualny jazyk) a do auditu (EN). */
+function mt_log_result(bool $ok, array $router, array $log): array
+{
+    return [
+        'ok'  => $ok,
+        'msg' => $router['name'] . ': ' . implode(', ', array_map(fn($x) => is_array($x) ? t(...$x) : t($x), $log)),
+        'log' => $router['name'] . ': ' . implode(', ', array_map(fn($x) => is_array($x) ? t_in('en', ...$x) : t_in('en', $x), $log)),
+    ];
+}
+
+/**
+ * PPPoE zakaznik na routeri s RADIUS: zapise radcheck/radreply podla stavu a programu,
+ * zmenu premietne do bezaicej relacie (CoA/PoD) a odstrani pripadny lokalny /ppp secret
+ * s rovnakym menom (MikroTik by ho uprednostnil pred RADIUS a stav by sa neuplatnil).
+ * Simple Queue, DHCP lease ani ARP sa pre PPPoE nevytvaraju.
+ */
+function mt_apply_customer_radius(array $c, array $router, ?array $program, ?string $oldUser): array
+{
+    $user = trim((string)($c['pppoe_user'] ?? ''));
+    if ($user === '') {
+        return ['ok' => false, 'msg' => $router['name'] . ': ' . t('PPPoE bez loginu'), 'log' => $router['name'] . ': ' . t_in('en', 'PPPoE bez loginu')];
+    }
+    if (radius_username_taken($user, (int)$c['id'])) {
+        $msg = ['PPPoE login %s už používa iný zákazník (RADIUS login musí byť unikátny).', $user];
+        return mt_log_result(false, $router, [$msg]);
+    }
+    $log = [];
+    try {
+        if ((string)($c['pppoe_pass'] ?? '') === '' && $c['status'] !== 'ukoncena') {
+            // bez hesla by RADIUS nikoho nepustil - vygeneruj dostatocne silne heslo
+            $c['pppoe_pass'] = radius_random(14);
+            db()->prepare('UPDATE customers SET pppoe_pass = ? WHERE id = ?')->execute([$c['pppoe_pass'], (int)$c['id']]);
+            $log[] = 'PPPoE heslo vygenerované';
+        }
+        $res = radius_apply_customer($c, $program, $oldUser);
+        $log = array_merge($log, $res['log']);
+    } catch (Throwable $e) {
+        $log[] = ['RADIUS chyba: %s', $e->getMessage()];
+        return mt_log_result(false, $router, $log);
+    }
+
+    // lokalny /ppp secret s rovnakym menom ma na MikroTiku prednost pred RADIUS -> odstranit
+    [$api, $err] = mt_connect($router);
+    if (!$api) {
+        $log[] = ['lokálny PPP secret neskontrolovaný (API: %s)', $err];
+    } else {
+        foreach (array_unique(array_filter([$user, trim((string)$oldUser)])) as $u) {
+            $sec = $api->comm('/ppp/secret/print', ['?name' => $u]);
+            foreach ($sec['items'] ?? [] as $it) {
+                if (isset($it['.id'])) {
+                    $api->comm('/ppp/secret/remove', ['.id' => $it['.id']]);
+                    $log[] = 'lokálny PPP secret zmazaný';
+                }
+            }
+        }
+        $api->disconnect();
+    }
+    return mt_log_result(true, $router, $log);
 }
 
 /**

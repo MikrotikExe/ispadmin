@@ -1,0 +1,49 @@
+# FreeRADIUS rlm_sql for ISPadmin — the SAME MySQL/MariaDB database the web app uses.
+# Credentials come from the container environment (docker-compose.yml / .env).
+# ISPadmin writes radcheck / radreply / nas; FreeRADIUS writes radacct / radpostauth.
+sql {
+	dialect = "mysql"
+	driver = "rlm_sql_${dialect}"
+
+	mysql {
+		warnings = auto
+	}
+
+	server = "$ENV{DB_HOST}"
+	port = $ENV{DB_PORT}
+	login = "$ENV{DB_USER}"
+	password = "$ENV{DB_PASS}"
+	radius_db = "$ENV{DB_NAME}"
+
+	acct_table1 = "radacct"
+	acct_table2 = "radacct"
+	postauth_table = "radpostauth"
+	authcheck_table = "radcheck"
+	groupcheck_table = "radgroupcheck"
+	authreply_table = "radreply"
+	groupreply_table = "radgroupreply"
+	usergroup_table = "radusergroup"
+
+	delete_stale_sessions = yes
+
+	pool {
+		start = 2
+		min = 2
+		max = 16
+		spare = 4
+		uses = 0
+		retry_delay = 5
+		lifetime = 0
+		idle_timeout = 60
+		max_retries = 5
+	}
+
+	# NAS entries are loaded on demand by the dynamic client server (sites/ispadmin-clients),
+	# so a router added in the UI works without restarting FreeRADIUS.
+	read_clients = no
+	client_table = "nas"
+
+	group_attribute = "SQL-Group"
+
+	$INCLUDE ${modconfdir}/${.:name}/main/${dialect}/queries.conf
+}
