@@ -281,7 +281,9 @@ function radius_sessions_export(string $from, string $to): Generator
             a.acctstarttime, a.acctstoptime, a.acctsessiontime,
             a.acctinputoctets, a.acctoutputoctets, a.acctterminatecause
         FROM radacct a
-        LEFT JOIN customers c ON c.pppoe_user = a.username AND c.conn_type = 'pppoe' AND c.deleted_at IS NULL
+        -- explicitna kolacia: FreeRADIUS tabulky a tabulky appky mozu mat rozne predvolene kolacie
+        -- (napr. MariaDB 11.x utf8mb4_uca1400_ai_ci vs utf8mb4_unicode_ci) -> inak 'Illegal mix of collations'
+        LEFT JOIN customers c ON c.pppoe_user COLLATE utf8mb4_unicode_ci = a.username COLLATE utf8mb4_unicode_ci AND c.conn_type = 'pppoe' AND c.deleted_at IS NULL
         WHERE a.acctstarttime < ? AND (a.acctstoptime IS NULL OR a.acctstoptime >= ?)
         ORDER BY a.acctstarttime, a.radacctid");
     $st->execute([$to, $from]);
